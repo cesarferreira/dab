@@ -1,7 +1,9 @@
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use colored::*;
-use inquire::Select;
+use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
+use inquire::{Select, Text};
 use regex::Regex;
 use std::path::PathBuf;
 use std::process::{Command, Output};
@@ -22,6 +24,9 @@ enum Commands {
     Uninstall,
     /// Clear app data
     Clear,
+    /// Force kill an app
+    #[command(name = "force-kill")]
+    ForceKill,
     /// Download APK
     Download {
         #[arg(short, long)]
@@ -66,15 +71,18 @@ impl AdbClient {
     }
 
     fn get_device_list(&self) -> Result<Vec<String>> {
-        let output = self.run_command(&["devices"])?;
+        let output = self.run_command(&["devices", "-l"])?;
         let stdout = String::from_utf8_lossy(&output.stdout);
         
         let devices: Vec<String> = stdout
             .lines()
-            .skip(1) // Skip the "List of devices attached" header
+            .filter(|line| !line.is_empty())
+            .filter(|line| !line.contains("daemon not running"))
+            .filter(|line| !line.contains("daemon started"))
+            .filter(|line| !line.contains("List of devices attached"))
             .filter_map(|line| {
                 let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 && parts[1] == "device" {
+                if !parts.is_empty() {
                     Some(parts[0].to_string())
                 } else {
                     None
@@ -90,55 +98,69 @@ impl AdbClient {
     }
 
     fn get_installed_apps(&self, device: &str) -> Result<Vec<App>> {
-        let output = self.run_command(&["-s", device, "shell", "pm", "list", "packages", "-f", "-3"])?;
+        let output = self.run_command(&["-s", device, "shell", "pm", "list", "packages"])?;
         let stdout = String::from_utf8_lossy(&output.stdout);
         
-        let package_regex = Regex::new(r"package:(.+?)=(.+)")?;
-        let mut apps = Vec::new();
+        let mut package_names: Vec<String> = stdout
+            .lines()
+            .filter(|line| !line.is_empty())
+            .map(|line| line.replace("package:", "").trim().to_string())
+            .collect();
         
-        for line in stdout.lines() {
-            if let Some(captures) = package_regex.captures(line) {
-                if captures.len() >= 3 {
-                    let apk_path = captures.get(1).unwrap().as_str();
-                    let package_name = captures.get(2).unwrap().as_str();
-                    
-                    // Get app name using aapt
-                    let app_name = self.get_app_name(device, apk_path).unwrap_or_else(|_| package_name.to_string());
-                    
-                    apps.push(App::new(package_name, &app_name));
-                }
-            }
-        }
+        package_names.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
         
-        apps.sort_by(|a, b| a.app_name.to_lowercase().cmp(&b.app_name.to_lowercase()));
+        let apps = package_names
+            .into_iter()
+            .map(|package_name| App::new(&package_name, &package_name))
+            .collect();
+        
         Ok(apps)
     }
 
-    fn get_app_name(&self, device: &str, apk_path: &str) -> Result<String> {
-        let output = self.run_command(&[
-            "-s", device, "shell", "dumpsys", "package", &apk_path.replace("/base.apk", ""),
-        ])?;
+    fn fuzzy_search_packages(&self, device: &str, search_text: &str) -> Result<Vec<App>> {
+        let all_apps = self.get_installed_apps(device)?;
         
+        if search_text.is_empty() {
+            return Ok(all_apps);
+        }
+        
+        let matcher = SkimMatcherV2::default();
+        
+        let mut scored_apps: Vec<(i64, App)> = all_apps
+            .into_iter()
+            .filter_map(|app| {
+                matcher
+                    .fuzzy_match(&app.package_name, search_text)
+                    .map(|score| (score, app))
+            })
+            .collect();
+        
+        scored_apps.sort_by(|a, b| b.0.cmp(&a.0));
+        
+        let filtered_apps = scored_apps.into_iter().map(|(_, app)| app).collect();
+        
+        Ok(filtered_apps)
+    }
+
+    fn get_device_apk_path(&self, device: &str, package_name: &str) -> Result<String> {
+        let output = self.run_command(&["-s", device, "shell", "pm", "list", "packages", "-f"])?;
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let name_regex = Regex::new(r"targetSdk=\d+\s+(.+?)\s+")?;
         
-        if let Some(captures) = name_regex.captures(&stdout) {
-            if captures.len() >= 2 {
-                return Ok(captures.get(1).unwrap().as_str().to_string());
-            }
-        }
+        let apk_path = stdout
+            .lines()
+            .filter(|line| !line.is_empty())
+            .map(|line| line.replace("package:", ""))
+            .find(|line| line.trim().ends_with(package_name.trim()))
+            .map(|line| line.replace(&format!("={}", package_name), ""));
         
-        // If we couldn't extract the name, return the package part of the path
-        let path_parts: Vec<&str> = apk_path.split('/').collect();
-        if let Some(last_part) = path_parts.last() {
-            Ok(last_part.to_string())
-        } else {
-            Ok(apk_path.to_string())
-        }
+        apk_path.ok_or_else(|| anyhow!("Could not find APK path for {}", package_name))
     }
 
     fn open_app(&self, device: &str, package_name: &str) -> Result<()> {
-        self.run_command(&["-s", device, "shell", "monkey", "-p", package_name, "-c", "android.intent.category.LAUNCHER", "1"])?;
+        self.run_command(&[
+            "-s", device, "shell", "monkey", "-p", package_name, 
+            "-c", "android.intent.category.LAUNCHER", "1"
+        ])?;
         Ok(())
     }
 
@@ -164,20 +186,14 @@ impl AdbClient {
         }
     }
 
+    fn force_kill_app(&self, device: &str, package_name: &str) -> Result<()> {
+        self.run_command(&["-s", device, "shell", "am", "force-stop", package_name])?;
+        Ok(())
+    }
+
     fn download_apk(&self, device: &str, package_name: &str, output_path: Option<PathBuf>) -> Result<PathBuf> {
-        // First get the path to the APK
-        let output = self.run_command(&["-s", device, "shell", "pm", "path", package_name])?;
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let apk_path = self.get_device_apk_path(device, package_name)?;
         
-        let path_regex = Regex::new(r"package:(.+)")?;
-        let apk_path = path_regex
-            .captures(&stdout)
-            .ok_or_else(|| anyhow!("Could not find APK path for {}", package_name))?
-            .get(1)
-            .unwrap()
-            .as_str();
-        
-        // Determine output file path
         let output_file = match output_path {
             Some(path) => {
                 if path.is_dir() {
@@ -193,10 +209,16 @@ impl AdbClient {
         
         println!("Downloading APK to {}", output_file.display());
         
-        // Pull the APK
-        self.run_command(&["-s", device, "pull", apk_path, &output_file.to_string_lossy()])?;
+        self.run_command(&["-s", device, "pull", &apk_path, &output_file.to_string_lossy()])?;
         
         Ok(output_file)
+    }
+
+    fn is_device_connected(&self, device: &str) -> bool {
+        match self.get_installed_apps(device) {
+            Ok(apps) => !apps.is_empty(),
+            Err(_) => false,
+        }
     }
 }
 
@@ -204,10 +226,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let adb_client = AdbClient::new()?;
     
-    // Get connected devices
     let devices = adb_client.get_device_list()?;
     
-    // Select device if more than one
     let device = if devices.len() > 1 {
         let device_select = Select::new("Select device:", devices).prompt()?;
         device_select
@@ -215,34 +235,46 @@ fn main() -> Result<()> {
         devices[0].clone()
     };
     
-    // Get installed apps
     println!("{}", "Loading installed apps...".yellow());
-    let apps = adb_client.get_installed_apps(&device)?;
     
-    // Determine action based on command or interactive menu
+    let should_search = inquire::Confirm::new("Do you want to search for a specific app?")
+        .with_default(false)
+        .prompt()?;
+    
+    let apps = if should_search {
+        let search_query = Text::new("Enter search query:").prompt()?;
+        adb_client.fuzzy_search_packages(&device, &search_query)?
+    } else {
+        adb_client.get_installed_apps(&device)?
+    };
+    
+    if apps.is_empty() {
+        println!("{}", "No matching apps found.".yellow());
+        return Ok(());
+    }
+    
     let action = match &cli.command {
         Some(cmd) => cmd,
         None => {
-            let options = vec!["Open", "Uninstall", "Clear App Data", "Download APK"];
+            let options = vec!["Open", "Uninstall", "Clear App Data", "Force Kill", "Download APK"];
             let selection = Select::new("Select action:", options).prompt()?;
             
             match selection {
                 "Open" => &Commands::Open,
                 "Uninstall" => &Commands::Uninstall,
                 "Clear App Data" => &Commands::Clear,
+                "Force Kill" => &Commands::ForceKill,
                 "Download APK" => &Commands::Download { output: None },
                 _ => unreachable!(),
             }
         }
     };
     
-    // Select an app
     let app_strings: Vec<String> = apps.iter().map(|app| app.display_name()).collect();
     let app_selection = Select::new("Select app:", app_strings.clone()).prompt()?;
     let selected_index = app_strings.iter().position(|s| s == &app_selection).unwrap();
     let selected_app = &apps[selected_index];
     
-    // Execute the selected action
     match action {
         Commands::Open => {
             println!("{} {}", "Opening".green(), selected_app.app_name);
@@ -255,6 +287,10 @@ fn main() -> Result<()> {
         Commands::Clear => {
             println!("{} data for {}", "Clearing".blue(), selected_app.app_name);
             adb_client.clear_app_data(&device, &selected_app.package_name)?;
+        }
+        Commands::ForceKill => {
+            println!("{} {}", "Force killing".red(), selected_app.app_name);
+            adb_client.force_kill_app(&device, &selected_app.package_name)?;
         }
         Commands::Download { output } => {
             println!("{} APK for {}", "Downloading".cyan(), selected_app.app_name);
