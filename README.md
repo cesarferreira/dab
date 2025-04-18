@@ -11,6 +11,7 @@ A fast, interactive command-line tool for sizzling Android app management from y
 - 📦 **Download APK** files
 - 🔍 **Show app info** (version, permissions, etc)
 - 🤖 **Show device info** (model, Android version, etc)
+- 🌐 **Show network info** (IP, WiFi, etc)
 - 📸 **Take screenshots**
 - 🎥 **Record screen**
 - 🔎 **Searchable app selection** (find your app in a snap)
@@ -47,6 +48,9 @@ abd app-info
 
 # 🤖 Show device info
 abd device
+
+# 🌐 Show network info
+abd network
 
 # 📸 Take a screenshot
 abd screenshot --output /path/to/screen.png

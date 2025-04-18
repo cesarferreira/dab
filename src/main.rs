@@ -46,6 +46,8 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+    /// Show network info (IP, WiFi, etc)
+    Network,
 }
 
 struct App {
@@ -377,6 +379,43 @@ impl AdbClient {
         }
         Ok(output_file)
     }
+
+    fn get_network_info(&self, device: &str) -> Result<()> {
+        // Get IP addresses (ipv4 only, no subnet)
+        let output = self.run_command(&["-s", device, "shell", "ip", "-4", "addr", "show"])?;
+        let ip_addr = String::from_utf8_lossy(&output.stdout);
+        println!("\n{}", "Network Interfaces (IP addresses)".bold().underline().yellow());
+        for line in ip_addr.lines() {
+            if let Some(ip) = line.trim().strip_prefix("inet ") {
+                let ip = ip.split_whitespace().next().unwrap_or("");
+                let ip_only = ip.split('/').next().unwrap_or("");
+                println!("{} {}", "IP Address:".cyan(), ip_only.green());
+            }
+        }
+
+        // Get WiFi info (only SSID network name, stripped of quotes and extra text)
+        let output = self.run_command(&["-s", device, "shell", "dumpsys", "wifi"])?;
+        let wifi_info = String::from_utf8_lossy(&output.stdout);
+        let mut ssid = None;
+        for line in wifi_info.lines() {
+            if let Some(idx) = line.find("SSID:") {
+                let after = &line[idx + 5..];
+                // Remove all leading/trailing quotes and whitespace
+                let mut ssid_val = after.trim().split(',').next().unwrap_or("").trim().to_string();
+                while ssid_val.starts_with('"') || ssid_val.ends_with('"') {
+                    ssid_val = ssid_val.trim_matches('"').to_string();
+                }
+                ssid_val = ssid_val.trim().to_string();
+                if !ssid_val.is_empty() && ssid_val != "<unknown ssid>" && ssid_val != "0x0" {
+                    ssid = Some(ssid_val);
+                    break;
+                }
+            }
+        }
+        println!("\n{}", "WiFi Info".bold().underline().yellow());
+        println!("{} {}", "SSID:".cyan(), ssid.unwrap_or_else(|| "N/A".to_string()).green());
+        Ok(())
+    }
 }
 
 fn main() -> Result<()> {
@@ -393,6 +432,11 @@ fn main() -> Result<()> {
         Some(Commands::Device) => {
             println!("{}", "Fetching device info...".yellow());
             adb_client.get_device_info(&device)?;
+            return Ok(());
+        },
+        Some(Commands::Network) => {
+            println!("{}", "Fetching network info...".yellow());
+            adb_client.get_network_info(&device)?;
             return Ok(());
         },
         Some(Commands::Screenshot { output }) => {
@@ -472,6 +516,10 @@ fn main() -> Result<()> {
         Commands::Record { output } => {
             println!("{}", "Recording screen...".yellow());
             adb_client.record_screen(&device, output.clone())?;
+        }
+        Commands::Network => {
+            println!("{}", "Fetching network info...".yellow());
+            adb_client.get_network_info(&device)?;
         }
     }
     Ok(())
