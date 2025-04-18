@@ -100,20 +100,16 @@ impl AdbClient {
     fn get_installed_apps(&self, device: &str) -> Result<Vec<App>> {
         let output = self.run_command(&["-s", device, "shell", "pm", "list", "packages"])?;
         let stdout = String::from_utf8_lossy(&output.stdout);
-        
         let mut package_names: Vec<String> = stdout
             .lines()
             .filter(|line| !line.is_empty())
             .map(|line| line.replace("package:", "").trim().to_string())
             .collect();
-        
         package_names.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
-        
         let apps = package_names
             .into_iter()
             .map(|package_name| App::new(&package_name, &package_name))
             .collect();
-        
         Ok(apps)
     }
 
@@ -242,7 +238,7 @@ fn main() -> Result<()> {
         return Ok(());
     }
     // Show searchable app picker
-    let app_strings: Vec<String> = apps.iter().map(|app| app.display_name()).collect();
+    let app_strings: Vec<String> = apps.iter().map(|app| app.package_name.clone()).collect();
     let app_selection = Select::new("Select app:", app_strings.clone()).with_page_size(15).prompt()?;
     let selected_index = app_strings.iter().position(|s| s == &app_selection).unwrap();
     let selected_app = &apps[selected_index];
