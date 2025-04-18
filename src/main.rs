@@ -35,6 +35,8 @@ enum Commands {
     /// Show app info (version, permissions, etc)
     #[command(name = "app-info")]
     AppInfo,
+    /// Show device info (model, manufacturer, Android version, etc)
+    Device,
 }
 
 struct App {
@@ -269,21 +271,81 @@ impl AdbClient {
         }
         Ok(())
     }
+
+    fn get_device_info(&self, device: &str) -> Result<()> {
+        let output = self.run_command(&["-s", device, "shell", "getprop"])?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut info = std::collections::HashMap::new();
+        let relevant_keys = [
+            "ro.product.model",
+            "ro.product.manufacturer",
+            "ro.product.brand",
+            "ro.product.device",
+            "ro.product.name",
+            "ro.build.version.release",
+            "ro.build.version.sdk",
+            "ro.build.version.codename",
+            "ro.product.board",
+            "ro.product.cpu.abi",
+            "ro.product.locale",
+            "ro.build.id",
+            "ro.build.version.security_patch",
+            "ro.product.build.fingerprint",
+        ];
+        for line in stdout.lines() {
+            if let Some((key, value)) = line.split_once("]: [") {
+                let key = key.trim_start_matches('[');
+                let value = value.trim_end_matches(']');
+                if relevant_keys.contains(&key) {
+                    info.insert(key, value);
+                }
+            }
+        }
+        println!("\n{}", "Device Info".bold().underline().yellow());
+        for &key in &relevant_keys {
+            let label = match key {
+                "ro.product.model" => "Model",
+                "ro.product.manufacturer" => "Manufacturer",
+                "ro.product.brand" => "Brand",
+                "ro.product.device" => "Device",
+                "ro.product.name" => "Name",
+                "ro.build.version.release" => "Android Version",
+                "ro.build.version.sdk" => "SDK",
+                "ro.build.version.codename" => "Codename",
+                "ro.product.board" => "Board",
+                "ro.product.cpu.abi" => "CPU ABI",
+                "ro.product.locale" => "Locale",
+                "ro.build.id" => "Build ID",
+                "ro.build.version.security_patch" => "Security Patch",
+                "ro.product.build.fingerprint" => "Fingerprint",
+                _ => key,
+            };
+            if let Some(val) = info.get(key) {
+                println!("{:<18}: {}", label.cyan(), val.green());
+            }
+        }
+        Ok(())
+    }
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let adb_client = AdbClient::new()?;
-    
     let devices = adb_client.get_device_list()?;
-    
     let device = if devices.len() > 1 {
         let device_select = Select::new("Select device:", devices).prompt()?;
         device_select
     } else {
         devices[0].clone()
     };
-    
+    match &cli.command {
+        Some(Commands::Device) => {
+            println!("{}", "Fetching device info...".yellow());
+            adb_client.get_device_info(&device)?;
+            return Ok(());
+        },
+        _ => {}
+    }
     println!("{}", "Loading installed apps...".yellow());
     let apps = adb_client.get_installed_apps(&device)?;
     if apps.is_empty() {
@@ -295,25 +357,23 @@ fn main() -> Result<()> {
     let app_selection = Select::new("Select app:", app_strings.clone()).with_page_size(15).prompt()?;
     let selected_index = app_strings.iter().position(|s| s == &app_selection).unwrap();
     let selected_app = &apps[selected_index];
-
     // Now show the action picker
     let action = match &cli.command {
         Some(cmd) => cmd,
         None => {
-            let options = vec!["Open", "Uninstall", "Clear App Data", "Force Kill", "Download APK", "App Info"];
+            let options = vec!["Open", "App Info", "Uninstall", "Clear App Data", "Force Kill", "Download APK"];
             let selection = Select::new("Select action:", options).prompt()?;
             match selection {
                 "Open" => &Commands::Open,
+                "App Info" => &Commands::AppInfo,
                 "Uninstall" => &Commands::Uninstall,
                 "Clear App Data" => &Commands::Clear,
                 "Force Kill" => &Commands::ForceKill,
                 "Download APK" => &Commands::Download { output: None },
-                "App Info" => &Commands::AppInfo,
                 _ => unreachable!(),
             }
         }
     };
-    
     match action {
         Commands::Open => {
             println!("{} {}", "Opening".green(), selected_app.app_name);
@@ -340,7 +400,10 @@ fn main() -> Result<()> {
             println!("{} {}", "Fetching info for".yellow(), selected_app.app_name);
             adb_client.get_app_info(&device, &selected_app.package_name)?;
         }
+        Commands::Device => {
+            println!("{}", "Fetching device info...".yellow());
+            adb_client.get_device_info(&device)?;
+        }
     }
-    
     Ok(())
 }
