@@ -10,7 +10,7 @@ homepage = "https://github.com/cesarferreira/xxx"
 readme = "README.md"
 
 [[bin]]
-name = "apm"
+name = "abd"
 path = "src/main.rs"
 
 [dependencies]

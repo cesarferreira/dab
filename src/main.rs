@@ -289,7 +289,6 @@ impl AdbClient {
                 "ro.product.locale" => "Locale",
                 "ro.build.id" => "Build ID",
                 "ro.build.version.security_patch" => "Security Patch",
-                "ro.product.build.fingerprint" => "Fingerprint",
                 _ => key,
             };
             if let Some(val) = info.get(key) {
