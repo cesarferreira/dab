@@ -5,6 +5,8 @@ use inquire::Select;
 use std::path::PathBuf;
 use std::process::{Command, Output};
 use which::which;
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use ctrlc;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -34,6 +36,16 @@ enum Commands {
     AppInfo,
     /// Show device info (model, manufacturer, Android version, etc)
     Device,
+    /// Take a screenshot of the device
+    Screenshot {
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// Record the device screen
+    Record {
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 struct App {
@@ -286,6 +298,86 @@ impl AdbClient {
         }
         Ok(())
     }
+
+    fn take_screenshot(&self, device: &str, output_path: Option<PathBuf>) -> Result<PathBuf> {
+        let remote_path = "/sdcard/screen.png";
+        let output_file = match output_path {
+            Some(path) => {
+                if path.is_dir() {
+                    path.join("screen.png")
+                } else {
+                    path
+                }
+            },
+            None => {
+                std::env::current_dir()?.join("screen.png")
+            }
+        };
+        self.run_command(&["-s", device, "shell", "screencap", "-p", remote_path])?;
+        self.run_command(&["-s", device, "pull", remote_path, &output_file.to_string_lossy()])?;
+        println!("Screenshot saved to {}", output_file.display());
+        Ok(output_file)
+    }
+
+    fn record_screen(&self, device: &str, output_path: Option<PathBuf>) -> Result<PathBuf> {
+        let remote_path = "/sdcard/demo.mp4";
+        let output_file = match output_path {
+            Some(path) => {
+                if path.is_dir() {
+                    path.join("demo.mp4")
+                } else {
+                    path
+                }
+            },
+            None => {
+                std::env::current_dir()?.join("demo.mp4")
+            }
+        };
+        println!("Recording... Press Ctrl+C to stop.");
+        let running = Arc::new(AtomicBool::new(true));
+        let r = running.clone();
+        let device_for_ctrlc = device.to_string();
+        let adb_path_for_ctrlc = self.adb_path.clone();
+        // We'll store the child process id on the device
+        let pid_file = "/sdcard/screenrecord.pid";
+        // Start screenrecord in the background and save its PID
+        let start_cmd = format!(
+            "screenrecord {} & echo $! > {} && wait $(cat {})",
+            remote_path, pid_file, pid_file
+        );
+        let mut child = Command::new(&self.adb_path)
+            .args(["-s", device, "shell", &start_cmd])
+            .spawn()?;
+        ctrlc::set_handler(move || {
+            r.store(false, Ordering::SeqCst);
+            // Read the PID and send SIGINT to it
+            let pid_output = Command::new(&adb_path_for_ctrlc)
+                .args(["-s", &device_for_ctrlc, "shell", "cat", pid_file])
+                .output();
+            if let Ok(output) = pid_output {
+                if let Ok(pid_str) = String::from_utf8(output.stdout) {
+                    let pid = pid_str.trim();
+                    if !pid.is_empty() {
+                        let _ = Command::new(&adb_path_for_ctrlc)
+                            .args(["-s", &device_for_ctrlc, "shell", "kill", "-2", pid]) // -2 is SIGINT
+                            .output();
+                    }
+                }
+            }
+        }).expect("Error setting Ctrl-C handler");
+        let status = child.wait()?;
+        running.store(false, Ordering::SeqCst);
+        // Always try to pull the file, even if interrupted
+        let _ = self.run_command(&["-s", device, "pull", remote_path, &output_file.to_string_lossy()]);
+        // Remove the file from the device
+        let _ = self.run_command(&["-s", device, "shell", "rm", remote_path]);
+        let _ = self.run_command(&["-s", device, "shell", "rm", pid_file]);
+        println!("Screen recording saved to {}", output_file.display());
+        if !status.success() {
+            return Err(anyhow!("Screenrecord failed or was interrupted"));
+        }
+        Ok(output_file)
+    }
 }
 
 fn main() -> Result<()> {
@@ -302,6 +394,16 @@ fn main() -> Result<()> {
         Some(Commands::Device) => {
             println!("{}", "Fetching device info...".yellow());
             adb_client.get_device_info(&device)?;
+            return Ok(());
+        },
+        Some(Commands::Screenshot { output }) => {
+            println!("{}", "Taking screenshot...".yellow());
+            adb_client.take_screenshot(&device, output.clone())?;
+            return Ok(());
+        },
+        Some(Commands::Record { output }) => {
+            println!("{}", "Recording screen...".yellow());
+            adb_client.record_screen(&device, output.clone())?;
             return Ok(());
         },
         _ => {}
@@ -363,6 +465,14 @@ fn main() -> Result<()> {
         Commands::Device => {
             println!("{}", "Fetching device info...".yellow());
             adb_client.get_device_info(&device)?;
+        }
+        Commands::Screenshot { output } => {
+            println!("{}", "Taking screenshot...".yellow());
+            adb_client.take_screenshot(&device, output.clone())?;
+        }
+        Commands::Record { output } => {
+            println!("{}", "Recording screen...".yellow());
+            adb_client.record_screen(&device, output.clone())?;
         }
     }
     Ok(())
