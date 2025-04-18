@@ -32,6 +32,9 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+    /// Show app info (version, permissions, etc)
+    #[command(name = "app-info")]
+    AppInfo,
 }
 
 struct App {
@@ -216,6 +219,56 @@ impl AdbClient {
             Err(_) => false,
         }
     }
+
+    fn get_app_info(&self, device: &str, package_name: &str) -> Result<()> {
+        let output = self.run_command(&["-s", device, "shell", "pm", "dump", package_name])?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // Parse version code and version name
+        let version_code = stdout.lines().find_map(|line| {
+            if line.trim().starts_with("versionCode=") {
+                line.trim().split('=').nth(1).map(|s| s.split_whitespace().next().unwrap_or("").to_string())
+            } else {
+                None
+            }
+        }).unwrap_or_else(|| "N/A".to_string());
+
+        let version_name = stdout.lines().find_map(|line| {
+            if line.trim().starts_with("versionName=") {
+                line.trim().split('=').nth(1).map(|s| s.to_string())
+            } else {
+                None
+            }
+        }).unwrap_or_else(|| "N/A".to_string());
+
+        // Find all permissions with granted=true
+        let mut granted_permissions = Vec::new();
+        for line in stdout.lines() {
+            let trimmed = line.trim();
+            if (trimmed.contains("android.permission.") || trimmed.contains("com.android.permission.")) && trimmed.contains("granted=true") {
+                // Extract the permission name (before the colon or space)
+                let perm = trimmed.split(':').next().unwrap_or("").split_whitespace().next().unwrap_or("");
+                if !perm.is_empty() && !granted_permissions.contains(&perm.to_string()) {
+                    granted_permissions.push(perm.to_string());
+                }
+            }
+        }
+
+        // Print info in a colored table
+        println!("{}", "\nApp Info".bold().underline().yellow());
+        println!("{}: {}", "Package Name".cyan(), package_name.green());
+        println!("{}: {}", "Version Code".cyan(), version_code.green());
+        println!("{}: {}", "Version Name".cyan(), version_name.green());
+        println!("{}:", "Granted Permissions".cyan());
+        if granted_permissions.is_empty() {
+            println!("  {}", "None".red());
+        } else {
+            for perm in granted_permissions {
+                println!("  {}", perm.blue());
+            }
+        }
+        Ok(())
+    }
 }
 
 fn main() -> Result<()> {
@@ -247,7 +300,7 @@ fn main() -> Result<()> {
     let action = match &cli.command {
         Some(cmd) => cmd,
         None => {
-            let options = vec!["Open", "Uninstall", "Clear App Data", "Force Kill", "Download APK"];
+            let options = vec!["Open", "Uninstall", "Clear App Data", "Force Kill", "Download APK", "App Info"];
             let selection = Select::new("Select action:", options).prompt()?;
             match selection {
                 "Open" => &Commands::Open,
@@ -255,6 +308,7 @@ fn main() -> Result<()> {
                 "Clear App Data" => &Commands::Clear,
                 "Force Kill" => &Commands::ForceKill,
                 "Download APK" => &Commands::Download { output: None },
+                "App Info" => &Commands::AppInfo,
                 _ => unreachable!(),
             }
         }
@@ -281,6 +335,10 @@ fn main() -> Result<()> {
             println!("{} APK for {}", "Downloading".cyan(), selected_app.app_name);
             let output_path = adb_client.download_apk(&device, &selected_app.package_name, output.clone())?;
             println!("APK downloaded to {}", output_path.display());
+        }
+        Commands::AppInfo => {
+            println!("{} {}", "Fetching info for".yellow(), selected_app.app_name);
+            adb_client.get_app_info(&device, &selected_app.package_name)?;
         }
     }
     
