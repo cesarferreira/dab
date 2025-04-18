@@ -290,7 +290,6 @@ impl AdbClient {
             "ro.product.locale",
             "ro.build.id",
             "ro.build.version.security_patch",
-            "ro.product.build.fingerprint",
         ];
         for line in stdout.lines() {
             if let Some((key, value)) = line.split_once("]: [") {
