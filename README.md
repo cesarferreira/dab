@@ -82,3 +82,7 @@ cargo install abd
 
 MIT
 
+## Ideas
+- [ ] Add a command to turn the connection into a wifi connection
+- [ ] see adb logcat for the currently focused app
+- [ ] see the currently focused app
