@@ -236,29 +236,23 @@ fn main() -> Result<()> {
     };
     
     println!("{}", "Loading installed apps...".yellow());
-    
-    let should_search = inquire::Confirm::new("Do you want to search for a specific app?")
-        .with_default(false)
-        .prompt()?;
-    
-    let apps = if should_search {
-        let search_query = Text::new("Enter search query:").prompt()?;
-        adb_client.fuzzy_search_packages(&device, &search_query)?
-    } else {
-        adb_client.get_installed_apps(&device)?
-    };
-    
+    let apps = adb_client.get_installed_apps(&device)?;
     if apps.is_empty() {
-        println!("{}", "No matching apps found.".yellow());
+        println!("{}", "No installed apps found.".yellow());
         return Ok(());
     }
-    
+    // Show searchable app picker
+    let app_strings: Vec<String> = apps.iter().map(|app| app.display_name()).collect();
+    let app_selection = Select::new("Select app:", app_strings.clone()).with_page_size(15).prompt()?;
+    let selected_index = app_strings.iter().position(|s| s == &app_selection).unwrap();
+    let selected_app = &apps[selected_index];
+
+    // Now show the action picker
     let action = match &cli.command {
         Some(cmd) => cmd,
         None => {
             let options = vec!["Open", "Uninstall", "Clear App Data", "Force Kill", "Download APK"];
             let selection = Select::new("Select action:", options).prompt()?;
-            
             match selection {
                 "Open" => &Commands::Open,
                 "Uninstall" => &Commands::Uninstall,
@@ -269,11 +263,6 @@ fn main() -> Result<()> {
             }
         }
     };
-    
-    let app_strings: Vec<String> = apps.iter().map(|app| app.display_name()).collect();
-    let app_selection = Select::new("Select app:", app_strings.clone()).prompt()?;
-    let selected_index = app_strings.iter().position(|s| s == &app_selection).unwrap();
-    let selected_app = &apps[selected_index];
     
     match action {
         Commands::Open => {
