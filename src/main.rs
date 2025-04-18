@@ -1,10 +1,7 @@
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use colored::*;
-use fuzzy_matcher::FuzzyMatcher;
-use fuzzy_matcher::skim::SkimMatcherV2;
-use inquire::{Select, Text};
-use regex::Regex;
+use inquire::Select;
 use std::path::PathBuf;
 use std::process::{Command, Output};
 use which::which;
@@ -50,10 +47,6 @@ impl App {
             package_name: package_name.to_string(),
             app_name: app_name.to_string(),
         }
-    }
-
-    fn display_name(&self) -> String {
-        format!("{} ({})", self.app_name, self.package_name)
     }
 }
 
@@ -116,31 +109,6 @@ impl AdbClient {
             .map(|package_name| App::new(&package_name, &package_name))
             .collect();
         Ok(apps)
-    }
-
-    fn fuzzy_search_packages(&self, device: &str, search_text: &str) -> Result<Vec<App>> {
-        let all_apps = self.get_installed_apps(device)?;
-        
-        if search_text.is_empty() {
-            return Ok(all_apps);
-        }
-        
-        let matcher = SkimMatcherV2::default();
-        
-        let mut scored_apps: Vec<(i64, App)> = all_apps
-            .into_iter()
-            .filter_map(|app| {
-                matcher
-                    .fuzzy_match(&app.package_name, search_text)
-                    .map(|score| (score, app))
-            })
-            .collect();
-        
-        scored_apps.sort_by(|a, b| b.0.cmp(&a.0));
-        
-        let filtered_apps = scored_apps.into_iter().map(|(_, app)| app).collect();
-        
-        Ok(filtered_apps)
     }
 
     fn get_device_apk_path(&self, device: &str, package_name: &str) -> Result<String> {
@@ -213,13 +181,6 @@ impl AdbClient {
         self.run_command(&["-s", device, "pull", &apk_path, &output_file.to_string_lossy()])?;
         
         Ok(output_file)
-    }
-
-    fn is_device_connected(&self, device: &str) -> bool {
-        match self.get_installed_apps(device) {
-            Ok(apps) => !apps.is_empty(),
-            Err(_) => false,
-        }
     }
 
     fn get_app_info(&self, device: &str, package_name: &str) -> Result<()> {
