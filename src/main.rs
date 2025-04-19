@@ -52,6 +52,8 @@ enum Commands {
     Wifi,
     /// Switch ADB back to USB mode
     Usb,
+    /// Device health check (battery, storage, RAM, network)
+    Health,
 }
 
 struct App {
@@ -453,6 +455,96 @@ impl AdbClient {
         println!("ADB is now in USB mode. If you were connected over Wi-Fi, you may disconnect the Wi-Fi connection.");
         Ok(())
     }
+
+    fn get_device_health(&self, device: &str) -> Result<()> {
+        // Battery
+        let output = self.run_command(&["-s", device, "shell", "dumpsys", "battery"])?;
+        let battery = String::from_utf8_lossy(&output.stdout);
+        let mut battery_level = "N/A".to_string();
+        let mut battery_status = "N/A".to_string();
+        for line in battery.lines() {
+            if line.trim().starts_with("level:") {
+                battery_level = line.trim().split(':').nth(1).unwrap_or("").trim().to_string();
+            }
+            if line.trim().starts_with("status:") {
+                battery_status = line.trim().split(':').nth(1).unwrap_or("").trim().to_string();
+            }
+        }
+        // Storage
+        let output = self.run_command(&["-s", device, "shell", "df", "/data"])?;
+        let storage = String::from_utf8_lossy(&output.stdout);
+        let mut storage_info = "N/A".to_string();
+        for line in storage.lines().skip(1) {
+            let cols: Vec<&str> = line.split_whitespace().collect();
+            if cols.len() >= 5 {
+                // cols[1]=total, cols[2]=used, cols[3]=free (in 1K-blocks)
+                let total_kb = cols[1].replace(",", "").parse::<f64>().unwrap_or(0.0);
+                let used_kb = cols[2].replace(",", "").parse::<f64>().unwrap_or(0.0);
+                let free_kb = cols[3].replace(",", "").parse::<f64>().unwrap_or(0.0);
+                let total_gb = total_kb / 1024.0 / 1024.0;
+                let used_gb = used_kb / 1024.0 / 1024.0;
+                let free_gb = free_kb / 1024.0 / 1024.0;
+                let percent_used = if total_kb > 0.0 { (used_kb / total_kb) * 100.0 } else { 0.0 };
+                let percent_free = if total_kb > 0.0 { (free_kb / total_kb) * 100.0 } else { 0.0 };
+                storage_info = format!(
+                    "Used: {:.2} GB ({:.1}%) / Total: {:.2} GB | Free: {:.2} GB ({:.1}%)",
+                    used_gb, percent_used, total_gb, free_gb, percent_free
+                );
+                break;
+            }
+        }
+        // RAM
+        let output = self.run_command(&["-s", device, "shell", "cat", "/proc/meminfo"])?;
+        let meminfo = String::from_utf8_lossy(&output.stdout);
+        let mut total_ram_kb = None;
+        let mut free_ram_kb = None;
+        for line in meminfo.lines() {
+            if line.starts_with("MemTotal:") {
+                total_ram_kb = line.replace("MemTotal:", "").trim().split_whitespace().next().and_then(|v| v.parse::<f64>().ok());
+            }
+            if line.starts_with("MemAvailable:") {
+                free_ram_kb = line.replace("MemAvailable:", "").trim().split_whitespace().next().and_then(|v| v.parse::<f64>().ok());
+            }
+        }
+        let (total_ram_gb, free_ram_gb) = match (total_ram_kb, free_ram_kb) {
+            (Some(total), Some(free)) => (total / 1024.0 / 1024.0, free / 1024.0 / 1024.0),
+            _ => (0.0, 0.0),
+        };
+        // Network (reuse get_network_info logic, but just get IP and SSID)
+        let output = self.run_command(&["-s", device, "shell", "ip", "-4", "addr", "show"])?;
+        let ip_addr = String::from_utf8_lossy(&output.stdout);
+        let mut ip = "N/A".to_string();
+        for line in ip_addr.lines() {
+            if let Some(ip_line) = line.trim().strip_prefix("inet ") {
+                ip = ip_line.split_whitespace().next().unwrap_or("").split('/').next().unwrap_or("").to_string();
+                break;
+            }
+        }
+        let output = self.run_command(&["-s", device, "shell", "dumpsys", "wifi"])?;
+        let wifi_info = String::from_utf8_lossy(&output.stdout);
+        let mut ssid = "N/A".to_string();
+        for line in wifi_info.lines() {
+            if let Some(idx) = line.find("SSID:") {
+                let after = &line[idx + 5..];
+                let mut ssid_val = after.trim().split(',').next().unwrap_or("").trim().to_string();
+                while ssid_val.starts_with('"') || ssid_val.ends_with('"') {
+                    ssid_val = ssid_val.trim_matches('"').to_string();
+                }
+                ssid_val = ssid_val.trim().to_string();
+                if !ssid_val.is_empty() && ssid_val != "<unknown ssid>" && ssid_val != "0x0" {
+                    ssid = ssid_val;
+                    break;
+                }
+            }
+        }
+        // Print summary
+        println!("\n{}", "Device Health Check".bold().underline().yellow());
+        println!("{} {}% (Status: {})", "Battery:".cyan(), battery_level.green(), battery_status.green());
+        println!("{} {}", "Storage:".cyan(), storage_info.green());
+        println!("{} {:.2} GB free / {:.2} GB total", "RAM:".cyan(), free_ram_gb, total_ram_gb);
+        println!("{} {} (SSID: {})", "Network:".cyan(), ip.green(), ssid.green());
+        Ok(())
+    }
 }
 
 fn real_main() -> Result<()> {
@@ -494,6 +586,11 @@ fn real_main() -> Result<()> {
         Some(Commands::Usb) => {
             println!("{}", "Switching ADB to USB mode...".yellow());
             adb_client.enable_usb(&device)?;
+            return Ok(());
+        },
+        Some(Commands::Health) => {
+            println!("{}", "Checking device health...".yellow());
+            adb_client.get_device_health(&device)?;
             return Ok(());
         },
         _ => {}
@@ -576,6 +673,11 @@ fn real_main() -> Result<()> {
         Commands::Usb => {
             println!("{}", "Switching ADB to USB mode...".yellow());
             adb_client.enable_usb(&device)?;
+            return Ok(());
+        }
+        Commands::Health => {
+            println!("{}", "Checking device health...".yellow());
+            adb_client.get_device_health(&device)?;
             return Ok(());
         }
     }

@@ -14,6 +14,7 @@ A fast, interactive command-line tool for automating and managing your Android d
 - 🔍 **Show app info** (version, permissions, etc)
 - 🤖 **Show device info** (model, Android version, etc)
 - 🌐 **Show network info** (IP, WiFi, etc)
+- 🩺 **Device Health Check** (battery, storage, RAM, network)
 - 📶 **Enable ADB over Wi-Fi** (connect wirelessly to your device)
 - 🔌 **Switch ADB back to USB mode** (revert to cable connection)
 - 📸 **Take screenshots**
@@ -67,6 +68,9 @@ dab wifi
 
 # 🔌 Switch ADB back to USB mode
 dab usb
+
+# 🩺 Device Health Check (battery, storage, RAM, network)
+dab health
 ```
 
 ## Requirements
