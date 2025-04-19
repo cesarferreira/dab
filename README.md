@@ -1,8 +1,14 @@
+<div align="center">
+
 # dab - Droid Automation Box 📦🤖
 
-> All your automation tools in one box.
-
+<p>
 A fast, interactive command-line tool for automating and managing your Android device from your computer.
+</p>
+<img src="extras/t-rec.gif" alt="demo" width="600" />
+</div>
+
+
 
 ## Features
 
