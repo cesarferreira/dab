@@ -1,5 +1,5 @@
 [package]
-name = "dab"
+name = "dab-cli"
 version = "0.1.0"
 edition = "2021"
 description = "Android package manager CLI tool"
