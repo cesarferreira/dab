@@ -532,7 +532,6 @@ fn main() {
             // Check for inquire interruption
             if let Some(inquire_err) = e.downcast_ref::<inquire::InquireError>() {
                 if matches!(inquire_err, inquire::InquireError::OperationInterrupted) {
-                    println!("\nInterrupted. Exiting...");
                     std::process::exit(0);
                 }
             }
