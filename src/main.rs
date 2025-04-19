@@ -2,15 +2,10 @@ mod cli;
 mod app;
 mod adb_client;
 
-use anyhow::{anyhow, Result};
-use clap::{Parser, Subcommand};
+use anyhow::Result;
+use clap::Parser;
 use colored::*;
 use inquire::Select;
-use std::path::PathBuf;
-use std::process::{Command, Output};
-use which::which;
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
-use ctrlc;
 use cli::{Cli, Commands};
 use adb_client::AdbClient;
 
