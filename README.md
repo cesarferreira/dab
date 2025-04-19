@@ -87,19 +87,19 @@ dab health
 
 ## Installation 🥓
 
+### From crates.io
+```bash
+cargo install dab-cli
+```
+
 ### From Source
 ```bash
 # Clone the repository
-git clone https://github.com/cesarferreira/apm.git
-cd apm
+git clone https://github.com/cesarferreira/dab.git
+cd dab
 
 # Build and install
 cargo install --path .
-```
-
-### From crates.io
-```bash
-cargo install dab
 ```
 
 ## License
