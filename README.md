@@ -1,6 +1,8 @@
-# abd - Android Bacon Dispenser 🥓📱
+# dab - Droid Automation Box 📦🤖
 
-A fast, interactive command-line tool for sizzling Android app management from your computer. Why bacon? Because managing your device should be deliciously easy.
+> All your automation tools in one box.
+
+A fast, interactive command-line tool for automating and managing your Android device from your computer.
 
 ## Features
 
@@ -21,42 +23,42 @@ A fast, interactive command-line tool for sizzling Android app management from y
 Run the interactive UI:
 
 ```bash
-abd
+dab
 ```
 
 Or use direct commands:
 
 ```bash
 # 🚀 Open an app
-abd open
+dab open
 
 # 🗑️ Uninstall an app
-abd uninstall
+dab uninstall
 
 # 🧹 Clear app data
-abd clear
+dab clear
 
 # 💀 Force kill an app
-abd force-kill
+dab force-kill
 
 # 📦 Download APK (optionally specify output path)
-abd download
-abd download --output /path/to/save.apk
+dab download
+dab download --output /path/to/save.apk
 
 # 🔍 Show app info
-abd app-info
+dab app-info
 
 # 🤖 Show device info
-abd device
+dab device
 
 # 🌐 Show network info
-abd network
+dab network
 
 # 📸 Take a screenshot
-abd screenshot --output /path/to/screen.png
+dab screenshot --output /path/to/screen.png
 
 # 🎥 Record the screen
-abd record --output /path/to/demo.mp4
+dab record --output /path/to/demo.mp4
 ```
 
 ## Requirements
@@ -79,7 +81,7 @@ cargo install --path .
 
 ### From crates.io
 ```bash
-cargo install abd
+cargo install dab
 ```
 
 ## License

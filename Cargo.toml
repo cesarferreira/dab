@@ -1,5 +1,5 @@
 [package]
-name = "abd"
+name = "dab"
 version = "0.1.0"
 edition = "2021"
 description = "Android package manager CLI tool"
@@ -10,7 +10,7 @@ homepage = "https://github.com/cesarferreira/xxx"
 readme = "README.md"
 
 [[bin]]
-name = "abd"
+name = "dab"
 path = "src/main.rs"
 
 [dependencies]
