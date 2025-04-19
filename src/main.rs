@@ -516,8 +516,11 @@ impl AdbClient {
         let mut ip = "N/A".to_string();
         for line in ip_addr.lines() {
             if let Some(ip_line) = line.trim().strip_prefix("inet ") {
-                ip = ip_line.split_whitespace().next().unwrap_or("").split('/').next().unwrap_or("").to_string();
-                break;
+                let candidate_ip = ip_line.split_whitespace().next().unwrap_or("").split('/').next().unwrap_or("").to_string();
+                if candidate_ip != "127.0.0.1" && !candidate_ip.is_empty() {
+                    ip = candidate_ip;
+                    break;
+                }
             }
         }
         let output = self.run_command(&["-s", device, "shell", "dumpsys", "wifi"])?;
