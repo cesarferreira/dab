@@ -5,7 +5,7 @@
 <p>
 A fast, interactive command-line tool for automating and managing your Android device from your computer.
 </p>
-<img src="extras/t-rec.gif" alt="demo" width="600" />
+<img src="extras/t-rec.gif" alt="demo" width="100%" />
 </div>
 
 
