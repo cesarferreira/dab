@@ -48,6 +48,10 @@ enum Commands {
     },
     /// Show network info (IP, WiFi, etc)
     Network,
+    /// Enable ADB over Wi-Fi
+    Wifi,
+    /// Switch ADB back to USB mode
+    Usb,
 }
 
 struct App {
@@ -416,6 +420,39 @@ impl AdbClient {
         println!("{} {}", "SSID:".cyan(), ssid.unwrap_or_else(|| "N/A".to_string()).green());
         Ok(())
     }
+
+    fn enable_wifi(&self, device: &str) -> Result<()> {
+        // 1. Get the device IP address
+        let output = self.run_command(&["-s", device, "shell", "ip", "-4", "addr", "show", "wlan0"])?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut ip_addr = None;
+        for line in stdout.lines() {
+            if let Some(ip) = line.trim().strip_prefix("inet ") {
+                let ip = ip.split_whitespace().next().unwrap_or("");
+                let ip_only = ip.split('/').next().unwrap_or("");
+                ip_addr = Some(ip_only.to_string());
+                break;
+            }
+        }
+        let ip = ip_addr.ok_or_else(|| anyhow!("Could not determine device Wi-Fi IP address. Is Wi-Fi enabled?"))?;
+        // 2. Enable TCP/IP mode on port 5555
+        println!("Enabling ADB over Wi-Fi (TCP/IP 5555)...");
+        self.run_command(&["-s", device, "tcpip", "5555"])?;
+        // 3. Connect to the device over Wi-Fi
+        println!("Connecting to {}:5555...", ip);
+        let connect_output = self.run_command(&["connect", &format!("{}:5555", ip)])?;
+        let connect_stdout = String::from_utf8_lossy(&connect_output.stdout);
+        println!("{}", connect_stdout.trim());
+        println!("\nYou can now disconnect the USB cable and use ADB over Wi-Fi!");
+        Ok(())
+    }
+
+    fn enable_usb(&self, device: &str) -> Result<()> {
+        println!("Switching ADB back to USB mode...");
+        self.run_command(&["-s", device, "usb"])?;
+        println!("ADB is now in USB mode. If you were connected over Wi-Fi, you may disconnect the Wi-Fi connection.");
+        Ok(())
+    }
 }
 
 fn real_main() -> Result<()> {
@@ -447,6 +484,16 @@ fn real_main() -> Result<()> {
         Some(Commands::Record { output }) => {
             println!("{}", "Recording screen...".yellow());
             adb_client.record_screen(&device, output.clone())?;
+            return Ok(());
+        },
+        Some(Commands::Wifi) => {
+            println!("{}", "Setting up ADB over Wi-Fi...".yellow());
+            adb_client.enable_wifi(&device)?;
+            return Ok(());
+        },
+        Some(Commands::Usb) => {
+            println!("{}", "Switching ADB to USB mode...".yellow());
+            adb_client.enable_usb(&device)?;
             return Ok(());
         },
         _ => {}
@@ -520,6 +567,16 @@ fn real_main() -> Result<()> {
         Commands::Network => {
             println!("{}", "Fetching network info...".yellow());
             adb_client.get_network_info(&device)?;
+        }
+        Commands::Wifi => {
+            println!("{}", "Setting up ADB over Wi-Fi...".yellow());
+            adb_client.enable_wifi(&device)?;
+            return Ok(());
+        }
+        Commands::Usb => {
+            println!("{}", "Switching ADB to USB mode...".yellow());
+            adb_client.enable_usb(&device)?;
+            return Ok(());
         }
     }
     Ok(())

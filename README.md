@@ -14,6 +14,8 @@ A fast, interactive command-line tool for automating and managing your Android d
 - 🔍 **Show app info** (version, permissions, etc)
 - 🤖 **Show device info** (model, Android version, etc)
 - 🌐 **Show network info** (IP, WiFi, etc)
+- 📶 **Enable ADB over Wi-Fi** (connect wirelessly to your device)
+- 🔌 **Switch ADB back to USB mode** (revert to cable connection)
 - 📸 **Take screenshots**
 - 🎥 **Record screen**
 - 🔎 **Searchable app selection** (find your app in a snap)
@@ -59,6 +61,12 @@ dab screenshot --output /path/to/screen.png
 
 # 🎥 Record the screen
 dab record --output /path/to/demo.mp4
+
+# 📶 Enable ADB over Wi-Fi (no more cables!)
+dab wifi
+
+# 🔌 Switch ADB back to USB mode
+dab usb
 ```
 
 ## Requirements
@@ -87,8 +95,3 @@ cargo install dab
 ## License
 
 MIT
-
-## Ideas
-- [ ] Add a command to turn the connection into a wifi connection
-- [ ] see adb logcat for the currently focused app
-- [ ] see the currently focused app
