@@ -3,27 +3,6 @@
 version = 4
 
 [[package]]
-name = "abd"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "clap",
- "colored",
- "ctrlc",
- "directories",
- "futures",
- "fuzzy-matcher",
- "inquire",
- "regex",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "which",
-]
-
-[[package]]
 name = "addr2line"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -254,6 +233,27 @@ checksum = "697b5419f348fd5ae2478e8018cb016c00a5881c7f46c717de98ffd135a5651c"
 dependencies = [
  "nix",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "dab"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap",
+ "colored",
+ "ctrlc",
+ "directories",
+ "futures",
+ "fuzzy-matcher",
+ "inquire",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "which",
 ]
 
 [[package]]

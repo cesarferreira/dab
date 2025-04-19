@@ -418,7 +418,7 @@ impl AdbClient {
     }
 }
 
-fn main() -> Result<()> {
+fn real_main() -> Result<()> {
     let cli = Cli::parse();
     let adb_client = AdbClient::new()?;
     let devices = adb_client.get_device_list()?;
@@ -523,4 +523,21 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn main() {
+    match real_main() {
+        Ok(()) => {},
+        Err(e) => {
+            // Check for inquire interruption
+            if let Some(inquire_err) = e.downcast_ref::<inquire::InquireError>() {
+                if matches!(inquire_err, inquire::InquireError::OperationInterrupted) {
+                    println!("\nInterrupted. Exiting...");
+                    std::process::exit(0);
+                }
+            }
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        }
+    }
 }
