@@ -356,6 +356,9 @@ impl AdbClient {
     }
 
     pub fn enable_usb(&self, device: &str) -> Result<()> {
+        println!("Disconnecting all ADB over network connections...");
+        // Run 'adb disconnect' (no -s, global disconnect)
+        let _ = self.run_command(&["disconnect"]);
         println!("Switching ADB back to USB mode...");
         self.run_command(&["-s", device, "usb"])?;
         println!("ADB is now in USB mode. If you were connected over Wi-Fi, you may disconnect the Wi-Fi connection.");
