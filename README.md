@@ -90,13 +90,13 @@ dab health
 dab launch <URL>
 ```
 
-## Example:
+Example:
 
 ```sh
-  $ dab launch https://cesarferreira.com                     # URL that opens in your default browser
-  $ dab launch recipes://recipe/02d8c78ac03a37ef874          # DEEP LINK to the "recipes app"
-  $ dab launch https://www.youtube.com/watch?v=dQw4w9WgXcQ   # opens youtube
-  $ dab launch wathever you want                             # urls that deep link, apps, wathever
+$ dab launch https://cesarferreira.com                     # URL that opens in your default browser
+$ dab launch recipes://recipe/12345                        # DEEP LINK to the "recipes app"
+$ dab launch https://www.youtube.com/watch?v=dQw4w9WgXcQ   # opens youtube
+$ dab launch wathever you want                             # urls that deep link, apps, wathever
 ```
 
 ## Requirements

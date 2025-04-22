@@ -12,6 +12,34 @@ use adb_client::AdbClient;
 fn real_main() -> Result<()> {
     let cli = Cli::parse();
     let adb_client = AdbClient::new()?;
+    
+    // Define common Android permissions once
+    let android_permissions = vec![
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS",
+        "android.permission.GET_ACCOUNTS",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.READ_PHONE_STATE",
+        "android.permission.CALL_PHONE",
+        "android.permission.READ_CALL_LOG",
+        "android.permission.WRITE_CALL_LOG",
+        "android.permission.ADD_VOICEMAIL",
+        "android.permission.USE_SIP",
+        "android.permission.BODY_SENSORS",
+        "android.permission.SEND_SMS",
+        "android.permission.RECEIVE_SMS",
+        "android.permission.READ_SMS",
+        "android.permission.RECEIVE_WAP_PUSH",
+        "android.permission.RECEIVE_MMS",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET",
+    ];
+    
     let devices = adb_client.get_device_list()?;
     let device = if devices.len() > 1 {
         let device_select = Select::new("Select device:", devices).prompt()?;
@@ -67,32 +95,8 @@ fn real_main() -> Result<()> {
             let app_selection = Select::new("Select app:", app_strings.clone()).with_page_size(15).prompt()?;
             let selected_index = app_strings.iter().position(|s| s == &app_selection).unwrap();
             let selected_app = &apps[selected_index];
-            let permissions = vec![
-                "android.permission.CAMERA",
-                "android.permission.RECORD_AUDIO",
-                "android.permission.READ_CONTACTS",
-                "android.permission.WRITE_CONTACTS",
-                "android.permission.GET_ACCOUNTS",
-                "android.permission.ACCESS_FINE_LOCATION",
-                "android.permission.ACCESS_COARSE_LOCATION",
-                "android.permission.ACCESS_BACKGROUND_LOCATION",
-                "android.permission.READ_PHONE_STATE",
-                "android.permission.CALL_PHONE",
-                "android.permission.READ_CALL_LOG",
-                "android.permission.WRITE_CALL_LOG",
-                "android.permission.ADD_VOICEMAIL",
-                "android.permission.USE_SIP",
-                "android.permission.BODY_SENSORS",
-                "android.permission.SEND_SMS",
-                "android.permission.RECEIVE_SMS",
-                "android.permission.READ_SMS",
-                "android.permission.RECEIVE_WAP_PUSH",
-                "android.permission.RECEIVE_MMS",
-                "android.permission.READ_EXTERNAL_STORAGE",
-                "android.permission.WRITE_EXTERNAL_STORAGE",
-                "android.permission.INTERNET",
-            ];
-            let selected = MultiSelect::new("Select permissions to grant (space to select, enter to apply):", permissions.clone())
+            
+            let selected = MultiSelect::new("Select permissions to grant (space to select, enter to apply):", android_permissions.clone())
                 .with_page_size(15)
                 .prompt()?;
             if selected.is_empty() {
@@ -111,32 +115,8 @@ fn real_main() -> Result<()> {
             let app_selection = Select::new("Select app:", app_strings.clone()).with_page_size(15).prompt()?;
             let selected_index = app_strings.iter().position(|s| s == &app_selection).unwrap();
             let selected_app = &apps[selected_index];
-            let permissions = vec![
-                "android.permission.CAMERA",
-                "android.permission.RECORD_AUDIO",
-                "android.permission.READ_CONTACTS",
-                "android.permission.WRITE_CONTACTS",
-                "android.permission.GET_ACCOUNTS",
-                "android.permission.ACCESS_FINE_LOCATION",
-                "android.permission.ACCESS_COARSE_LOCATION",
-                "android.permission.ACCESS_BACKGROUND_LOCATION",
-                "android.permission.READ_PHONE_STATE",
-                "android.permission.CALL_PHONE",
-                "android.permission.READ_CALL_LOG",
-                "android.permission.WRITE_CALL_LOG",
-                "android.permission.ADD_VOICEMAIL",
-                "android.permission.USE_SIP",
-                "android.permission.BODY_SENSORS",
-                "android.permission.SEND_SMS",
-                "android.permission.RECEIVE_SMS",
-                "android.permission.READ_SMS",
-                "android.permission.RECEIVE_WAP_PUSH",
-                "android.permission.RECEIVE_MMS",
-                "android.permission.READ_EXTERNAL_STORAGE",
-                "android.permission.WRITE_EXTERNAL_STORAGE",
-                "android.permission.INTERNET",
-            ];
-            let selected = MultiSelect::new("Select permissions to revoke (space to select, enter to apply):", permissions.clone())
+            
+            let selected = MultiSelect::new("Select permissions to revoke (space to select, enter to apply):", android_permissions.clone())
                 .with_page_size(15)
                 .prompt()?;
             if selected.is_empty() {
@@ -240,32 +220,8 @@ fn real_main() -> Result<()> {
         }
         Commands::Grant => {
             println!("{}", "Granting permissions...".yellow());
-            let permissions = vec![
-                "android.permission.CAMERA",
-                "android.permission.RECORD_AUDIO",
-                "android.permission.READ_CONTACTS",
-                "android.permission.WRITE_CONTACTS",
-                "android.permission.GET_ACCOUNTS",
-                "android.permission.ACCESS_FINE_LOCATION",
-                "android.permission.ACCESS_COARSE_LOCATION",
-                "android.permission.ACCESS_BACKGROUND_LOCATION",
-                "android.permission.READ_PHONE_STATE",
-                "android.permission.CALL_PHONE",
-                "android.permission.READ_CALL_LOG",
-                "android.permission.WRITE_CALL_LOG",
-                "android.permission.ADD_VOICEMAIL",
-                "android.permission.USE_SIP",
-                "android.permission.BODY_SENSORS",
-                "android.permission.SEND_SMS",
-                "android.permission.RECEIVE_SMS",
-                "android.permission.READ_SMS",
-                "android.permission.RECEIVE_WAP_PUSH",
-                "android.permission.RECEIVE_MMS",
-                "android.permission.READ_EXTERNAL_STORAGE",
-                "android.permission.WRITE_EXTERNAL_STORAGE",
-                "android.permission.INTERNET",
-            ];
-            let selected = MultiSelect::new("Select permissions to grant (space to select, enter to apply):", permissions.clone())
+            
+            let selected = MultiSelect::new("Select permissions to grant (space to select, enter to apply):", android_permissions.clone())
                 .with_page_size(15)
                 .prompt()?;
             if selected.is_empty() {
@@ -278,32 +234,8 @@ fn real_main() -> Result<()> {
         }
         Commands::Revoke => {
             println!("{}", "Revoking permissions...".yellow());
-            let permissions = vec![
-                "android.permission.CAMERA",
-                "android.permission.RECORD_AUDIO",
-                "android.permission.READ_CONTACTS",
-                "android.permission.WRITE_CONTACTS",
-                "android.permission.GET_ACCOUNTS",
-                "android.permission.ACCESS_FINE_LOCATION",
-                "android.permission.ACCESS_COARSE_LOCATION",
-                "android.permission.ACCESS_BACKGROUND_LOCATION",
-                "android.permission.READ_PHONE_STATE",
-                "android.permission.CALL_PHONE",
-                "android.permission.READ_CALL_LOG",
-                "android.permission.WRITE_CALL_LOG",
-                "android.permission.ADD_VOICEMAIL",
-                "android.permission.USE_SIP",
-                "android.permission.BODY_SENSORS",
-                "android.permission.SEND_SMS",
-                "android.permission.RECEIVE_SMS",
-                "android.permission.READ_SMS",
-                "android.permission.RECEIVE_WAP_PUSH",
-                "android.permission.RECEIVE_MMS",
-                "android.permission.READ_EXTERNAL_STORAGE",
-                "android.permission.WRITE_EXTERNAL_STORAGE",
-                "android.permission.INTERNET",
-            ];
-            let selected = MultiSelect::new("Select permissions to revoke (space to select, enter to apply):", permissions.clone())
+            
+            let selected = MultiSelect::new("Select permissions to revoke (space to select, enter to apply):", android_permissions.clone())
                 .with_page_size(15)
                 .prompt()?;
             if selected.is_empty() {
