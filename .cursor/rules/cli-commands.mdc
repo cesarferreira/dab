@@ -1,5 +1,25 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: false
 ---
+# CLI Commands Reference
+
+- All CLI commands and their arguments are defined in [src/cli.rs](mdc:src/cli.rs) using the `clap` crate.
+- The main command parser is the `Cli` struct, with subcommands in the `Commands` enum.
+- Supported commands include:
+  - `open`: Open an app
+  - `uninstall`: Uninstall an app
+  - `clear`: Clear app data
+  - `force-kill`: Force kill an app
+  - `download [--output <path>]`: Download APK
+  - `app-info`: Show app info
+  - `device`: Show device info
+  - `screenshot [--output <path>]`: Take a screenshot
+  - `record [--output <path>]`: Record the screen
+  - `network`: Show network info
+  - `wifi`: Enable ADB over Wi-Fi
+  - `usb`: Switch ADB back to USB mode
+  - `health`: Device health check
+  - `launch <URL>`: Launch a URL or deep link
+- Command dispatch and execution logic is handled in [src/main.rs](mdc:src/main.rs), which calls methods on the `AdbClient` struct.

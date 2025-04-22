@@ -5,7 +5,7 @@ mod adb_client;
 use anyhow::Result;
 use clap::Parser;
 use colored::*;
-use inquire::Select;
+use inquire::{Select, MultiSelect};
 use cli::{Cli, Commands};
 use adb_client::AdbClient;
 
@@ -60,6 +60,94 @@ fn real_main() -> Result<()> {
             adb_client.launch_url(&device, url)?;
             return Ok(());
         },
+        Some(Commands::Grant) => {
+            println!("{}", "Granting permissions...".yellow());
+            let apps = adb_client.get_installed_apps(&device)?;
+            let app_strings: Vec<String> = apps.iter().map(|app| app.package_name.clone()).collect();
+            let app_selection = Select::new("Select app:", app_strings.clone()).with_page_size(15).prompt()?;
+            let selected_index = app_strings.iter().position(|s| s == &app_selection).unwrap();
+            let selected_app = &apps[selected_index];
+            let permissions = vec![
+                "android.permission.CAMERA",
+                "android.permission.RECORD_AUDIO",
+                "android.permission.READ_CONTACTS",
+                "android.permission.WRITE_CONTACTS",
+                "android.permission.GET_ACCOUNTS",
+                "android.permission.ACCESS_FINE_LOCATION",
+                "android.permission.ACCESS_COARSE_LOCATION",
+                "android.permission.ACCESS_BACKGROUND_LOCATION",
+                "android.permission.READ_PHONE_STATE",
+                "android.permission.CALL_PHONE",
+                "android.permission.READ_CALL_LOG",
+                "android.permission.WRITE_CALL_LOG",
+                "android.permission.ADD_VOICEMAIL",
+                "android.permission.USE_SIP",
+                "android.permission.BODY_SENSORS",
+                "android.permission.SEND_SMS",
+                "android.permission.RECEIVE_SMS",
+                "android.permission.READ_SMS",
+                "android.permission.RECEIVE_WAP_PUSH",
+                "android.permission.RECEIVE_MMS",
+                "android.permission.READ_EXTERNAL_STORAGE",
+                "android.permission.WRITE_EXTERNAL_STORAGE",
+                "android.permission.INTERNET",
+            ];
+            let selected = MultiSelect::new("Select permissions to grant (space to select, enter to apply):", permissions.clone())
+                .with_page_size(15)
+                .prompt()?;
+            if selected.is_empty() {
+                println!("No permissions selected.");
+            } else {
+                let perms: Vec<&str> = selected.iter().map(|s| &**s).collect();
+                adb_client.grant_permissions(&device, &selected_app.package_name, &perms)?;
+                println!("Permissions granted successfully.");
+            }
+            return Ok(());
+        },
+        Some(Commands::Revoke) => {
+            println!("{}", "Revoking permissions...".yellow());
+            let apps = adb_client.get_installed_apps(&device)?;
+            let app_strings: Vec<String> = apps.iter().map(|app| app.package_name.clone()).collect();
+            let app_selection = Select::new("Select app:", app_strings.clone()).with_page_size(15).prompt()?;
+            let selected_index = app_strings.iter().position(|s| s == &app_selection).unwrap();
+            let selected_app = &apps[selected_index];
+            let permissions = vec![
+                "android.permission.CAMERA",
+                "android.permission.RECORD_AUDIO",
+                "android.permission.READ_CONTACTS",
+                "android.permission.WRITE_CONTACTS",
+                "android.permission.GET_ACCOUNTS",
+                "android.permission.ACCESS_FINE_LOCATION",
+                "android.permission.ACCESS_COARSE_LOCATION",
+                "android.permission.ACCESS_BACKGROUND_LOCATION",
+                "android.permission.READ_PHONE_STATE",
+                "android.permission.CALL_PHONE",
+                "android.permission.READ_CALL_LOG",
+                "android.permission.WRITE_CALL_LOG",
+                "android.permission.ADD_VOICEMAIL",
+                "android.permission.USE_SIP",
+                "android.permission.BODY_SENSORS",
+                "android.permission.SEND_SMS",
+                "android.permission.RECEIVE_SMS",
+                "android.permission.READ_SMS",
+                "android.permission.RECEIVE_WAP_PUSH",
+                "android.permission.RECEIVE_MMS",
+                "android.permission.READ_EXTERNAL_STORAGE",
+                "android.permission.WRITE_EXTERNAL_STORAGE",
+                "android.permission.INTERNET",
+            ];
+            let selected = MultiSelect::new("Select permissions to revoke (space to select, enter to apply):", permissions.clone())
+                .with_page_size(15)
+                .prompt()?;
+            if selected.is_empty() {
+                println!("No permissions selected.");
+            } else {
+                let perms: Vec<&str> = selected.iter().map(|s| &**s).collect();
+                adb_client.revoke_permissions(&device, &selected_app.package_name, &perms)?;
+                println!("Permissions revoked successfully.");
+            }
+            return Ok(());
+        },
         _ => {}
     }
     println!("{}", "Loading installed apps...".yellow());
@@ -75,7 +163,7 @@ fn real_main() -> Result<()> {
     let action = match &cli.command {
         Some(cmd) => cmd,
         None => {
-            let options = vec!["Open", "App Info", "Uninstall", "Clear App Data", "Force Kill", "Download APK"];
+            let options = vec!["Open", "App Info", "Uninstall", "Clear App Data", "Force Kill", "Download APK", "Grant Permissions", "Revoke Permissions"];
             let selection = Select::new("Select action:", options).prompt()?;
             match selection {
                 "Open" => &Commands::Open,
@@ -84,6 +172,8 @@ fn real_main() -> Result<()> {
                 "Clear App Data" => &Commands::Clear,
                 "Force Kill" => &Commands::ForceKill,
                 "Download APK" => &Commands::Download { output: None },
+                "Grant Permissions" => &Commands::Grant,
+                "Revoke Permissions" => &Commands::Revoke,
                 _ => unreachable!(),
             }
         }
@@ -147,6 +237,82 @@ fn real_main() -> Result<()> {
         }
         Commands::Launch { .. } => {
             unreachable!("Launch command should be handled earlier and never reach this point");
+        }
+        Commands::Grant => {
+            println!("{}", "Granting permissions...".yellow());
+            let permissions = vec![
+                "android.permission.CAMERA",
+                "android.permission.RECORD_AUDIO",
+                "android.permission.READ_CONTACTS",
+                "android.permission.WRITE_CONTACTS",
+                "android.permission.GET_ACCOUNTS",
+                "android.permission.ACCESS_FINE_LOCATION",
+                "android.permission.ACCESS_COARSE_LOCATION",
+                "android.permission.ACCESS_BACKGROUND_LOCATION",
+                "android.permission.READ_PHONE_STATE",
+                "android.permission.CALL_PHONE",
+                "android.permission.READ_CALL_LOG",
+                "android.permission.WRITE_CALL_LOG",
+                "android.permission.ADD_VOICEMAIL",
+                "android.permission.USE_SIP",
+                "android.permission.BODY_SENSORS",
+                "android.permission.SEND_SMS",
+                "android.permission.RECEIVE_SMS",
+                "android.permission.READ_SMS",
+                "android.permission.RECEIVE_WAP_PUSH",
+                "android.permission.RECEIVE_MMS",
+                "android.permission.READ_EXTERNAL_STORAGE",
+                "android.permission.WRITE_EXTERNAL_STORAGE",
+                "android.permission.INTERNET",
+            ];
+            let selected = MultiSelect::new("Select permissions to grant (space to select, enter to apply):", permissions.clone())
+                .with_page_size(15)
+                .prompt()?;
+            if selected.is_empty() {
+                println!("No permissions selected.");
+            } else {
+                let perms: Vec<&str> = selected.iter().map(|s| &**s).collect();
+                adb_client.grant_permissions(&device, &selected_app.package_name, &perms)?;
+                println!("Permissions granted successfully.");
+            }
+        }
+        Commands::Revoke => {
+            println!("{}", "Revoking permissions...".yellow());
+            let permissions = vec![
+                "android.permission.CAMERA",
+                "android.permission.RECORD_AUDIO",
+                "android.permission.READ_CONTACTS",
+                "android.permission.WRITE_CONTACTS",
+                "android.permission.GET_ACCOUNTS",
+                "android.permission.ACCESS_FINE_LOCATION",
+                "android.permission.ACCESS_COARSE_LOCATION",
+                "android.permission.ACCESS_BACKGROUND_LOCATION",
+                "android.permission.READ_PHONE_STATE",
+                "android.permission.CALL_PHONE",
+                "android.permission.READ_CALL_LOG",
+                "android.permission.WRITE_CALL_LOG",
+                "android.permission.ADD_VOICEMAIL",
+                "android.permission.USE_SIP",
+                "android.permission.BODY_SENSORS",
+                "android.permission.SEND_SMS",
+                "android.permission.RECEIVE_SMS",
+                "android.permission.READ_SMS",
+                "android.permission.RECEIVE_WAP_PUSH",
+                "android.permission.RECEIVE_MMS",
+                "android.permission.READ_EXTERNAL_STORAGE",
+                "android.permission.WRITE_EXTERNAL_STORAGE",
+                "android.permission.INTERNET",
+            ];
+            let selected = MultiSelect::new("Select permissions to revoke (space to select, enter to apply):", permissions.clone())
+                .with_page_size(15)
+                .prompt()?;
+            if selected.is_empty() {
+                println!("No permissions selected.");
+            } else {
+                let perms: Vec<&str> = selected.iter().map(|s| &**s).collect();
+                adb_client.revoke_permissions(&device, &selected_app.package_name, &perms)?;
+                println!("Permissions revoked successfully.");
+            }
         }
     }
     Ok(())

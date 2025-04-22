@@ -53,4 +53,8 @@ pub enum Commands {
         /// The URL or deep link to launch
         url: String,
     },
+    /// Grant permissions to an app
+    Grant,
+    /// Revoke permissions from an app
+    Revoke,
 } 

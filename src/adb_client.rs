@@ -460,4 +460,26 @@ impl AdbClient {
         }
         Ok(())
     }
+
+    pub fn grant_permissions(&self, device: &str, package_name: &str, permissions: &[&str]) -> Result<()> {
+        for &permission in permissions {
+            let output = self.run_command(&["-s", device, "shell", "pm", "grant", package_name, permission])?;
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if !stderr.trim().is_empty() {
+                eprintln!("Error granting {}: {}", permission, stderr.red());
+            }
+        }
+        Ok(())
+    }
+
+    pub fn revoke_permissions(&self, device: &str, package_name: &str, permissions: &[&str]) -> Result<()> {
+        for &permission in permissions {
+            let output = self.run_command(&["-s", device, "shell", "pm", "revoke", package_name, permission])?;
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if !stderr.trim().is_empty() {
+                eprintln!("Error revoking {}: {}", permission, stderr.red());
+            }
+        }
+        Ok(())
+    }
 } 

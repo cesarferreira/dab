@@ -1,5 +1,12 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: false
 ---
+# App Struct Reference
+
+- The [src/app.rs](mdc:src/app.rs) file defines the `App` struct, which represents an installed Android application.
+- Fields:
+  - `package_name`: The unique package identifier of the app
+  - `app_name`: The display name of the app
+- The `App` struct is used throughout [src/adb_client.rs](mdc:src/adb_client.rs) for listing, selecting, and operating on installed apps.

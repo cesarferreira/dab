@@ -1,5 +1,16 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: false
 ---
+# ADB Client Logic
+
+- The [src/adb_client.rs](mdc:src/adb_client.rs) file defines the `AdbClient` struct, which encapsulates all ADB-related operations.
+- Key responsibilities:
+  - Device discovery and selection
+  - Listing installed apps
+  - App operations: open, uninstall, clear data, force kill, download APK, show app info
+  - Device operations: show device info, take screenshot, record screen, show network info, enable Wi-Fi/USB, health check
+  - Launching URLs or deep links on the device
+- Each public method on `AdbClient` corresponds to a CLI command and is called from [src/main.rs](mdc:src/main.rs).
+- The `App` struct used for app info is defined in [src/app.rs](mdc:src/app.rs).

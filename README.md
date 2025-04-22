@@ -18,6 +18,7 @@ A fast, interactive command-line tool for automating and managing your Android d
 - 💀 **Force kill** stubborn apps
 - 📦 **Download APK** files
 - 🔍 **Show app info** (version, permissions, etc)
+- 🛡️ **Grant or revoke app permissions** (multi-select from known permissions)
 - 🤖 **Show device info** (model, Android version, etc)
 - 🌐 **Show network info** (IP, WiFi, etc)
 - 🩺 **Device Health Check** (battery, storage, RAM, network)
@@ -57,6 +58,12 @@ dab download --output /path/to/save.apk
 
 # 🔍 Show app info
 dab app-info
+
+# 🛡️ Grant permissions to an app (multi-select)
+dab grant
+
+# 🛡️ Revoke permissions from an app (multi-select)
+dab revoke
 
 # 🤖 Show device info
 dab device
