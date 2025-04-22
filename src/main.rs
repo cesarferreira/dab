@@ -55,6 +55,11 @@ fn real_main() -> Result<()> {
             adb_client.get_device_health(&device)?;
             return Ok(());
         },
+        Some(Commands::Launch { url }) => {
+            println!("{} {}", "Launching:".green(), url.cyan());
+            adb_client.launch_url(&device, url)?;
+            return Ok(());
+        },
         _ => {}
     }
     println!("{}", "Loading installed apps...".yellow());
@@ -139,6 +144,9 @@ fn real_main() -> Result<()> {
             println!("{}", "Checking device health...".yellow());
             adb_client.get_device_health(&device)?;
             return Ok(());
+        }
+        Commands::Launch { .. } => {
+            unreachable!("Launch command should be handled earlier and never reach this point");
         }
     }
     Ok(())

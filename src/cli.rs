@@ -48,4 +48,9 @@ pub enum Commands {
     Usb,
     /// Device health check (battery, storage, RAM, network)
     Health,
+    /// Launch a URL or deep link in the Android device
+    Launch {
+        /// The URL or deep link to launch
+        url: String,
+    },
 } 

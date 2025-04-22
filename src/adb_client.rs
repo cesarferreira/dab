@@ -451,4 +451,13 @@ impl AdbClient {
         println!("{} {} (SSID: {})", "Network:".cyan(), ip.green(), ssid.green());
         Ok(())
     }
+
+    pub fn launch_url(&self, device: &str, url: &str) -> Result<()> {
+        let output = self.run_command(&["-s", device, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", url])?;
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if !stderr.trim().is_empty() {
+            eprintln!("{} {}", "Error launching URL:".red(), stderr.red());
+        }
+        Ok(())
+    }
 } 

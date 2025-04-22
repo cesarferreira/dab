@@ -26,6 +26,7 @@ A fast, interactive command-line tool for automating and managing your Android d
 - 📸 **Take screenshots**
 - 🎥 **Record screen**
 - 🔎 **Searchable app selection** (find your app in a snap)
+- 🚀 **Launch** URLs or deep links in your Android device (open YouTube, browser, or any app via deep link)
 
 ## Usage
 
@@ -77,6 +78,18 @@ dab usb
 
 # 🩺 Device Health Check (battery, storage, RAM, network)
 dab health
+
+# 🚀 Launch a URL or deep link
+dab launch <URL>
+```
+
+## Example:
+
+```sh
+  $ dab launch https://cesarferreira.com                     # URL that opens in your default browser
+  $ dab launch recipes://recipe/02d8c78ac03a37ef874          # DEEP LINK to the "recipes app"
+  $ dab launch https://www.youtube.com/watch?v=dQw4w9WgXcQ   # opens youtube
+  $ dab launch wathever you want                             # urls that deep link, apps, wathever
 ```
 
 ## Requirements
