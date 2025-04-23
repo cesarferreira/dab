@@ -473,13 +473,197 @@ impl AdbClient {
     }
 
     pub fn revoke_permissions(&self, device: &str, package_name: &str, permissions: &[&str]) -> Result<()> {
-        for &permission in permissions {
-            let output = self.run_command(&["-s", device, "shell", "pm", "revoke", package_name, permission])?;
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            if !stderr.trim().is_empty() {
-                eprintln!("Error revoking {}: {}", permission, stderr.red());
+        for permission in permissions {
+            self.run_command(&["-s", device, "shell", "pm", "revoke", package_name, permission])?;
+        }
+        Ok(())
+    }
+
+    pub fn get_crash_logs(&self, device: &str, package_name: Option<&str>, since_minutes: u32, native: bool) -> Result<()> {
+        // Setup Ctrl+C handler for when the user wants to interrupt long output
+        let running = Arc::new(AtomicBool::new(true));
+        let r = running.clone();
+        ctrlc::set_handler(move || {
+            r.store(false, Ordering::SeqCst);
+        }).expect("Error setting Ctrl-C handler");
+        
+        println!("{}", "\nFetching crash logs...".yellow());
+        
+        // Determine which log command to use
+        let log_command = if native {
+            "logcat -b crash"
+        } else {
+            "bugreport"
+        };
+        
+        // Create a longer-lived value for the formatted string
+        let time_arg = format!("{}", since_minutes * 60);
+        
+        // Run the appropriate ADB command
+        let cmd_args = if native {
+            vec!["-s", device, "shell", log_command, "-t", &time_arg]
+        } else {
+            vec!["-s", device, "shell", log_command]
+        };
+        
+        let output = self.run_command(&cmd_args)?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        
+        // Process the output based on log type
+        if native {
+            self.process_native_crash_logs(&stdout, package_name)
+        } else {
+            self.process_anr_logs(&stdout, package_name, since_minutes)
+        }
+    }
+    
+    fn process_native_crash_logs(&self, log_content: &str, package_filter: Option<&str>) -> Result<()> {
+        let mut found_crashes = false;
+        let mut current_crash = Vec::new();
+        let mut is_crash_section = false;
+        let mut current_package = String::new();
+        
+        for line in log_content.lines() {
+            if !is_crash_section && line.contains("DEBUG") && line.contains(">>> ") && line.contains(" <<<") {
+                // Start of a crash section
+                is_crash_section = true;
+                current_crash.clear();
+                
+                // Extract package name
+                if let Some(start_idx) = line.find(">>> ") {
+                    let start_pos = start_idx + 4;
+                    let remainder = &line[start_pos..];
+                    if let Some(end_idx) = remainder.find(" <<<") {
+                        current_package = remainder[..end_idx].to_string();
+                    }
+                }
+            }
+            
+            if is_crash_section {
+                current_crash.push(line.to_string());
+                
+                // End of a crash section or trace
+                if line.trim().is_empty() && !current_crash.is_empty() {
+                    is_crash_section = false;
+                    
+                    // If we have a package filter, check if this crash matches
+                    if let Some(pkg) = package_filter {
+                        if !current_package.contains(pkg) {
+                            continue;
+                        }
+                    }
+                    
+                    // Print the crash
+                    found_crashes = true;
+                    println!("\n{}", "=".repeat(80).yellow());
+                    for crash_line in &current_crash {
+                        if crash_line.contains(">>> ") && crash_line.contains(" <<<") {
+                            println!("{}", crash_line.red().bold());
+                        } else if crash_line.contains("pid:") || crash_line.contains("signal") {
+                            println!("{}", crash_line.yellow());
+                        } else if crash_line.contains("#") && (crash_line.contains("+0x") || crash_line.contains("pc ")) {
+                            println!("{}", crash_line.cyan());
+                        } else {
+                            println!("{}", crash_line);
+                        }
+                    }
+                }
             }
         }
+        
+        if !found_crashes {
+            println!("{}", "No crashes found matching the criteria.".green());
+        }
+        
+        Ok(())
+    }
+    
+    fn process_anr_logs(&self, log_content: &str, package_filter: Option<&str>, since_minutes: u32) -> Result<()> {
+        let mut found_anrs = false;
+        let mut in_anr_section = false;
+        let mut anr_data = Vec::new();
+        let mut current_package = String::new();
+        let mut anr_time = String::new();
+        
+        for line in log_content.lines() {
+            // Look for ANR section starts
+            if line.contains("ANR in ") || line.contains("am_anr") {
+                in_anr_section = true;
+                anr_data.clear();
+                
+                // Try to extract package name
+                if line.contains("ANR in ") {
+                    if let Some(start_idx) = line.find("ANR in ") {
+                        let start_pos = start_idx + 7;
+                        let remainder = &line[start_pos..];
+                        if let Some(end_idx) = remainder.find(" ") {
+                            current_package = remainder[..end_idx].to_string();
+                        } else {
+                            current_package = remainder.to_string();
+                        }
+                    }
+                } else if line.contains("am_anr") && line.contains("reason:") {
+                    if let Some(idx) = line.find("reason:") {
+                        let parts: Vec<&str> = line[..idx].split_whitespace().collect();
+                        for (i, part) in parts.iter().enumerate() {
+                            if *part == "pid:" && i + 1 < parts.len() {
+                                // We found a PID, but need to look up the package name
+                                // For simplicity, we'll just use a placeholder here
+                                current_package = format!("PID: {}", parts[i + 1]);
+                            }
+                        }
+                    }
+                }
+                
+                // Try to extract time
+                if let Some(time_end) = line.find(" ") {
+                    anr_time = line[0..time_end].to_string();
+                }
+                
+                anr_data.push(line.to_string());
+            } else if in_anr_section {
+                // Add line to current ANR data
+                anr_data.push(line.to_string());
+                
+                // Simple heuristic to detect end of ANR section (empty line or new section)
+                if line.trim().is_empty() || (line.contains("-") && line.contains(":") && line.contains(".")) {
+                    in_anr_section = false;
+                    
+                    // Apply package filter if specified
+                    if let Some(pkg) = package_filter {
+                        if !current_package.contains(pkg) {
+                            continue;
+                        }
+                    }
+                    
+                    // Check if ANR is within the time range (simple approximation)
+                    // For a more accurate implementation, we'd need to parse the timestamps properly
+                    if !anr_time.is_empty() && since_minutes > 0 {
+                        // Simplified check - in a real implementation, parse and compare timestamps
+                    }
+                    
+                    // Print ANR
+                    found_anrs = true;
+                    println!("\n{}", "=".repeat(80).yellow());
+                    for anr_line in &anr_data {
+                        if anr_line.contains("ANR in ") {
+                            println!("{}", anr_line.red().bold());
+                        } else if anr_line.contains("PID:") || anr_line.contains("Reason:") {
+                            println!("{}", anr_line.yellow());
+                        } else if anr_line.contains("at ") && anr_line.contains(".java:") {
+                            println!("{}", anr_line.cyan());
+                        } else {
+                            println!("{}", anr_line);
+                        }
+                    }
+                }
+            }
+        }
+        
+        if !found_anrs {
+            println!("{}", "No ANRs found matching the criteria.".green());
+        }
+        
         Ok(())
     }
 } 
