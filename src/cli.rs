@@ -57,4 +57,16 @@ pub enum Commands {
     Grant,
     /// Revoke permissions from an app
     Revoke,
+    /// Show crash logs for a specific app
+    Crashes {
+        /// The package name to find crashes for (optional)
+        #[arg(short, long)]
+        package: Option<String>,
+        /// Show crashes in the last X minutes (default: 10)
+        #[arg(short, long, default_value = "10")]
+        since: u32,
+        /// Use native crash logs instead of ANR logs
+        #[arg(short, long)]
+        native: bool,
+    },
 } 

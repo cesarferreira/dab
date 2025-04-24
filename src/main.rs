@@ -88,6 +88,11 @@ fn real_main() -> Result<()> {
             adb_client.launch_url(&device, url)?;
             return Ok(());
         },
+        Some(Commands::Crashes { package, since, native }) => {
+            let package_ref = package.as_deref();
+            adb_client.get_crash_logs(&device, package_ref, *since, *native)?;
+            return Ok(());
+        },
         Some(Commands::Grant) => {
             println!("{}", "Granting permissions...".yellow());
             let apps = adb_client.get_installed_apps(&device)?;
@@ -143,7 +148,7 @@ fn real_main() -> Result<()> {
     let action = match &cli.command {
         Some(cmd) => cmd,
         None => {
-            let options = vec!["Open", "App Info", "Uninstall", "Clear App Data", "Force Kill", "Download APK", "Grant Permissions", "Revoke Permissions"];
+            let options = vec!["Open", "App Info", "Uninstall", "Clear App Data", "Force Kill", "Download APK", "Grant Permissions", "Revoke Permissions", "Crash Logs"];
             let selection = Select::new("Select action:", options).prompt()?;
             match selection {
                 "Open" => &Commands::Open,
@@ -154,6 +159,7 @@ fn real_main() -> Result<()> {
                 "Download APK" => &Commands::Download { output: None },
                 "Grant Permissions" => &Commands::Grant,
                 "Revoke Permissions" => &Commands::Revoke,
+                "Crash Logs" => &Commands::Crashes { package: None, since: 10, native: false },
                 _ => unreachable!(),
             }
         }
@@ -245,6 +251,12 @@ fn real_main() -> Result<()> {
                 adb_client.revoke_permissions(&device, &selected_app.package_name, &perms)?;
                 println!("Permissions revoked successfully.");
             }
+        }
+        Commands::Crashes { .. } => {
+            let package = None;
+            let since = 10;
+            let native = false;
+            adb_client.get_crash_logs(&device, package, since, native)?;
         }
     }
     Ok(())

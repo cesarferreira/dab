@@ -26,6 +26,7 @@ A fast, interactive command-line tool for automating and managing your Android d
 - 🔌 **Switch ADB back to USB mode** (revert to cable connection)
 - 📸 **Take screenshots**
 - 🎥 **Record screen**
+- 💥 **Show crash logs** (view ANR and native crash logs from your app)
 - 🔎 **Searchable app selection** (find your app in a snap)
 - 🚀 **Launch** URLs or deep links in your Android device (open YouTube, browser, or any app via deep link)
 
@@ -86,6 +87,11 @@ dab usb
 # 🩺 Device Health Check (battery, storage, RAM, network)
 dab health
 
+# 💥 Show crash logs for your apps
+dab crashes
+dab crashes --package com.example.myapp
+dab crashes --since 30 --native
+
 # 🚀 Launch a URL or deep link
 dab launch <URL>
 ```
@@ -97,6 +103,22 @@ $ dab launch https://cesarferreira.com                     # URL that opens in y
 $ dab launch recipes://recipe/12345                        # DEEP LINK to the "recipes app"
 $ dab launch https://www.youtube.com/watch?v=dQw4w9WgXcQ   # opens youtube
 $ dab launch wathever you want                             # urls that deep link, apps, wathever
+```
+
+### Crash Logs Examples
+
+```sh
+# Show ANR logs from the last 10 minutes (default)
+$ dab crashes
+
+# Show native crash logs for a specific package
+$ dab crashes --package com.example.myapp --native
+
+# Show ANR logs from the last 30 minutes
+$ dab crashes --since 30
+
+# Show native crash logs from the last hour
+$ dab crashes --native --since 60
 ```
 
 ## Requirements
