@@ -7,6 +7,8 @@ use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use ctrlc;
 use colored::*;
 use super::app::App;
+use std::fs;
+use zip::ZipArchive;
 
 pub struct AdbClient {
     pub adb_path: PathBuf,
@@ -481,5 +483,419 @@ impl AdbClient {
             }
         }
         Ok(())
+    }
+
+    pub fn install_file(&self, device: &str, file_path: &PathBuf) -> Result<()> {
+        // Check if file exists
+        if !file_path.exists() {
+            return Err(anyhow!("File does not exist: {}", file_path.display()));
+        }
+
+        // Check file extension to determine type
+        let extension = file_path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.to_lowercase());
+
+        match extension.as_deref() {
+            Some("apk") => {
+                println!("{} {}", "Installing APK:".green(), file_path.display());
+                self.install_apk(device, file_path)
+            }
+            Some("xapk") => {
+                println!("{} {}", "Installing XAPK:".green(), file_path.display());
+                self.install_xapk(device, file_path)
+            }
+            _ => {
+                Err(anyhow!("Unsupported file type. Only APK and XAPK files are supported."))
+            }
+        }
+    }
+
+    fn install_apk(&self, device: &str, apk_path: &PathBuf) -> Result<()> {
+        let output = self.run_command(&["-s", device, "install", "-d", &apk_path.to_string_lossy()])?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        if stdout.contains("Success") {
+            println!("{}", "APK installed successfully!".green());
+            Ok(())
+        } else {
+            eprintln!("{} {}", "Error installing APK:".red(), stderr.red());
+            Err(anyhow!("Failed to install APK: {}", stderr.trim()))
+        }
+    }
+
+    fn install_xapk(&self, device: &str, xapk_path: &PathBuf) -> Result<()> {
+        // Create temporary directory
+        let temp_dir = std::env::temp_dir().join(format!("dab_xapk_{}", 
+            std::process::id()));
+        fs::create_dir_all(&temp_dir)?;
+
+        // Extract XAPK file
+        println!("{} {}", "Extracting XAPK to:".yellow(), temp_dir.display());
+        let file = fs::File::open(xapk_path)?;
+        let mut archive = ZipArchive::new(file)?;
+
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i)?;
+            let outpath = match file.enclosed_name() {
+                Some(path) => temp_dir.join(path),
+                None => continue,
+            };
+
+            if file.name().ends_with('/') {
+                fs::create_dir_all(&outpath)?;
+            } else {
+                if let Some(parent) = outpath.parent() {
+                    if !parent.exists() {
+                        fs::create_dir_all(parent)?;
+                    }
+                }
+                let mut outfile = fs::File::create(&outpath)?;
+                std::io::copy(&mut file, &mut outfile)?;
+            }
+        }
+
+        // Find all APK files in the extracted directory
+        let mut apk_files = Vec::new();
+        self.find_apk_files(&temp_dir, &mut apk_files)?;
+
+        if apk_files.is_empty() {
+            let _ = fs::remove_dir_all(&temp_dir);
+            return Err(anyhow!("No APK files found in XAPK"));
+        }
+
+        // Install multiple APKs
+        println!("{} {} APK files", "Installing".green(), apk_files.len());
+        let mut args = vec!["-s", device, "install-multiple", "-d"];
+        let apk_paths: Vec<String> = apk_files.iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect();
+        let apk_path_refs: Vec<&str> = apk_paths.iter().map(|s| s.as_str()).collect();
+        args.extend(apk_path_refs);
+
+        let output = self.run_command(&args)?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        // Clean up temporary directory
+        let _ = fs::remove_dir_all(&temp_dir);
+
+        if stdout.contains("Success") {
+            println!("{}", "XAPK installed successfully!".green());
+            Ok(())
+        } else {
+            eprintln!("{} {}", "Error installing XAPK:".red(), stderr.red());
+            Err(anyhow!("Failed to install XAPK: {}", stderr.trim()))
+        }
+    }
+
+    fn find_apk_files(&self, dir: &PathBuf, apk_files: &mut Vec<PathBuf>) -> Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            
+            if path.is_dir() {
+                self.find_apk_files(&path, apk_files)?;
+            } else if path.extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| ext.to_lowercase()) == Some("apk".to_string()) {
+                apk_files.push(path);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn analyze_local_file(&self, file_path: &PathBuf) -> Result<()> {
+        let extension = file_path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.to_lowercase());
+
+        match extension.as_deref() {
+            Some("apk") => self.analyze_apk(file_path),
+            Some("xapk") => self.analyze_xapk(file_path),
+            _ => Err(anyhow!("Unsupported file type. Only APK and XAPK files are supported.")),
+        }
+    }
+
+    fn analyze_apk(&self, apk_path: &PathBuf) -> Result<()> {
+        // Try to use aapt first
+        match self.analyze_apk_with_aapt(apk_path) {
+            Ok(_) => return Ok(()),
+            Err(_) => {
+                println!("{}", "aapt not found, using basic ZIP analysis...".yellow());
+            }
+        }
+
+        // Fallback to basic ZIP analysis
+        self.analyze_apk_basic(apk_path)
+    }
+
+    fn analyze_apk_with_aapt(&self, apk_path: &PathBuf) -> Result<()> {
+        // Try aapt first, then aapt2
+        let aapt_commands = ["aapt", "aapt2"];
+        
+        for &aapt_cmd in &aapt_commands {
+            if let Ok(aapt_path) = which::which(aapt_cmd) {
+                let output = Command::new(&aapt_path)
+                    .args(["dump", "badging", &apk_path.to_string_lossy()])
+                    .output()?;
+                
+                if output.status.success() {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    self.parse_aapt_output(&stdout)?;
+                    return Ok(());
+                }
+            }
+        }
+        
+        Err(anyhow!("aapt not available"))
+    }
+
+    fn parse_aapt_output(&self, aapt_output: &str) -> Result<()> {
+        // Debug mode: show raw aapt output
+        if std::env::var("DAB_DEBUG").is_ok() {
+            println!("{}", "\n=== RAW AAPT OUTPUT ===".yellow());
+            println!("{}", aapt_output);
+            println!("{}", "=== END RAW OUTPUT ===\n".yellow());
+        }
+
+        let mut package_name = "N/A".to_string();
+        let mut version_code = "N/A".to_string();
+        let mut version_name = "N/A".to_string();
+        let mut app_name = "N/A".to_string();
+        let mut permissions = Vec::new();
+
+        for line in aapt_output.lines() {
+            let line = line.trim();
+            
+            if line.starts_with("package:") {
+                // Parse: package: name='com.example.app' versionCode='1' versionName='1.0'
+                if let Some(name_start) = line.find("name='") {
+                    if let Some(name_end) = line[name_start + 6..].find("'") {
+                        package_name = line[name_start + 6..name_start + 6 + name_end].to_string();
+                    }
+                }
+                if let Some(code_start) = line.find("versionCode='") {
+                    if let Some(code_end) = line[code_start + 13..].find("'") {
+                        version_code = line[code_start + 13..code_start + 13 + code_end].to_string();
+                    }
+                }
+                // Try multiple patterns for versionName
+                if let Some(name_start) = line.find("versionName='") {
+                    if let Some(name_end) = line[name_start + 13..].find("'") {
+                        let extracted_version = line[name_start + 13..name_start + 13 + name_end].to_string();
+                        version_name = if extracted_version.is_empty() { 
+                            "Not set".to_string() 
+                        } else { 
+                            extracted_version 
+                        };
+                    }
+                } else if let Some(name_start) = line.find("versionName=\"") {
+                    // Handle double quotes instead of single quotes
+                    if let Some(name_end) = line[name_start + 13..].find("\"") {
+                        let extracted_version = line[name_start + 13..name_start + 13 + name_end].to_string();
+                        version_name = if extracted_version.is_empty() { 
+                            "Not set".to_string() 
+                        } else { 
+                            extracted_version 
+                        };
+                    }
+                }
+            } else if line.starts_with("application-label:") {
+                app_name = line.replace("application-label:", "").trim().trim_matches('\'').trim_matches('"').to_string();
+                if app_name.is_empty() {
+                    app_name = "N/A".to_string();
+                }
+            } else if line.starts_with("application-label-") {
+                // Handle localized labels like application-label-en:'App Name'
+                if app_name == "N/A" {
+                    let label = line.split(':').nth(1).unwrap_or("").trim().trim_matches('\'').trim_matches('"').to_string();
+                    if !label.is_empty() {
+                        app_name = label;
+                    }
+                }
+            } else if line.starts_with("uses-permission:") {
+                if let Some(perm_start) = line.find("name='") {
+                    if let Some(perm_end) = line[perm_start + 6..].find("'") {
+                        let permission = line[perm_start + 6..perm_start + 6 + perm_end].to_string();
+                        if !permissions.contains(&permission) {
+                            permissions.push(permission);
+                        }
+                    }
+                } else if let Some(perm_start) = line.find("name=\"") {
+                    if let Some(perm_end) = line[perm_start + 6..].find("\"") {
+                        let permission = line[perm_start + 6..perm_start + 6 + perm_end].to_string();
+                        if !permissions.contains(&permission) {
+                            permissions.push(permission);
+                        }
+                    }
+                }
+            }
+        }
+
+        println!("{}", "\nAPK File Analysis".bold().underline().yellow());
+        println!("{}: {}", "Package Name".cyan(), package_name.green());
+        println!("{}: {}", "App Name".cyan(), app_name.green());
+        println!("{}: {}", "Version Code".cyan(), version_code.green());
+        println!("{}: {}", "Version Name".cyan(), version_name.green());
+        println!("{}:", "Permissions Requested".cyan());
+        if permissions.is_empty() {
+            println!("  {}", "None".red());
+        } else {
+            for perm in permissions {
+                println!("  {}", perm.blue());
+            }
+        }
+
+        Ok(())
+    }
+
+    fn analyze_apk_basic(&self, apk_path: &PathBuf) -> Result<()> {
+        let file = fs::File::open(apk_path)?;
+        let mut archive = ZipArchive::new(file)?;
+        
+        let mut has_manifest = false;
+        let mut classes_dex_count = 0;
+        let mut assets_count = 0;
+        let mut res_count = 0;
+        
+        for i in 0..archive.len() {
+            let file = archive.by_index(i)?;
+            let name = file.name();
+            
+            if name == "AndroidManifest.xml" {
+                has_manifest = true;
+            } else if name.starts_with("classes") && name.ends_with(".dex") {
+                classes_dex_count += 1;
+            } else if name.starts_with("assets/") {
+                assets_count += 1;
+            } else if name.starts_with("res/") {
+                res_count += 1;
+            }
+        }
+
+        println!("{}", "\nAPK File Analysis (Basic)".bold().underline().yellow());
+        println!("{}: {}", "File Path".cyan(), apk_path.display().to_string().green());
+        println!("{}: {}", "Has AndroidManifest.xml".cyan(), if has_manifest { "Yes".green() } else { "No".red() });
+        println!("{}: {}", "DEX Files".cyan(), classes_dex_count.to_string().green());
+        println!("{}: {}", "Asset Files".cyan(), assets_count.to_string().green());
+        println!("{}: {}", "Resource Files".cyan(), res_count.to_string().green());
+        println!("{}: {}", "Total Files".cyan(), archive.len().to_string().green());
+        
+        // Try to get file size
+        if let Ok(metadata) = fs::metadata(apk_path) {
+            let size_mb = metadata.len() as f64 / 1024.0 / 1024.0;
+            println!("{}: {:.2} MB", "File Size".cyan(), size_mb.to_string().green());
+        }
+
+        println!("\n{}", "Note: For detailed app info (package name, version, permissions), install 'aapt' or 'aapt2' from Android SDK.".yellow());
+
+        Ok(())
+    }
+
+    fn analyze_xapk(&self, xapk_path: &PathBuf) -> Result<()> {
+        // Create temporary directory
+        let temp_dir = std::env::temp_dir().join(format!("dab_xapk_analysis_{}", 
+            std::process::id()));
+        fs::create_dir_all(&temp_dir)?;
+
+        // Extract XAPK file
+        println!("{} {}", "Extracting XAPK to:".yellow(), temp_dir.display());
+        let file = fs::File::open(xapk_path)?;
+        let mut archive = ZipArchive::new(file)?;
+
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i)?;
+            let outpath = match file.enclosed_name() {
+                Some(path) => temp_dir.join(path),
+                None => continue,
+            };
+
+            if file.name().ends_with('/') {
+                fs::create_dir_all(&outpath)?;
+            } else {
+                if let Some(parent) = outpath.parent() {
+                    if !parent.exists() {
+                        fs::create_dir_all(parent)?;
+                    }
+                }
+                let mut outfile = fs::File::create(&outpath)?;
+                std::io::copy(&mut file, &mut outfile)?;
+            }
+        }
+
+        // Find all APK files in the extracted directory
+        let mut apk_files = Vec::new();
+        self.find_apk_files(&temp_dir, &mut apk_files)?;
+
+        if apk_files.is_empty() {
+            let _ = fs::remove_dir_all(&temp_dir);
+            return Err(anyhow!("No APK files found in XAPK"));
+        }
+
+        println!("{} {} APK files found in XAPK", "Found".green(), apk_files.len());
+        
+        // Try to find the base APK (main app APK)
+        let base_apk = self.find_base_apk(&apk_files)?;
+        
+        println!("{} {}", "Analyzing base APK:".yellow(), base_apk.file_name().unwrap_or_default().to_string_lossy());
+        
+        // Analyze the base APK
+        self.analyze_apk(&base_apk)?;
+
+        // Show info about other APKs if debug mode is enabled
+        if std::env::var("DAB_DEBUG").is_ok() {
+            println!("\n{}", "Other APK files in XAPK:".cyan());
+            for apk_file in &apk_files {
+                if apk_file != &base_apk {
+                    let file_size = fs::metadata(apk_file)
+                        .map(|m| format!("{:.1} MB", m.len() as f64 / 1024.0 / 1024.0))
+                        .unwrap_or_else(|_| "Unknown".to_string());
+                    println!("  {} ({})", apk_file.file_name().unwrap_or_default().to_string_lossy().blue(), file_size);
+                }
+            }
+        }
+
+        // Clean up temporary directory
+        let _ = fs::remove_dir_all(&temp_dir);
+        Ok(())
+    }
+
+    fn find_base_apk(&self, apk_files: &[PathBuf]) -> Result<PathBuf> {
+        // Strategy 1: Look for base.apk
+        for apk_file in apk_files {
+            if let Some(filename) = apk_file.file_name() {
+                if filename.to_string_lossy().to_lowercase() == "base.apk" {
+                    return Ok(apk_file.clone());
+                }
+            }
+        }
+        
+        // Strategy 2: Look for APK files with "base" in the name
+        for apk_file in apk_files {
+            if let Some(filename) = apk_file.file_name() {
+                let name = filename.to_string_lossy().to_lowercase();
+                if name.contains("base") {
+                    return Ok(apk_file.clone());
+                }
+            }
+        }
+        
+        // Strategy 3: Find the largest APK (likely the main app)
+        let mut largest_apk = apk_files[0].clone();
+        let mut largest_size = 0u64;
+        
+        for apk_file in apk_files {
+            if let Ok(metadata) = fs::metadata(apk_file) {
+                let size = metadata.len();
+                if size > largest_size {
+                    largest_size = size;
+                    largest_apk = apk_file.clone();
+                }
+            }
+        }
+        
+        Ok(largest_apk)
     }
 } 

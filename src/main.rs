@@ -13,6 +13,16 @@ fn real_main() -> Result<()> {
     let cli = Cli::parse();
     let adb_client = AdbClient::new()?;
     
+    // Handle commands that don't require device connection first
+    match &cli.command {
+        Some(Commands::Info { file }) => {
+            println!("{} {}", "Analyzing file:".yellow(), file.display());
+            adb_client.analyze_local_file(file)?;
+            return Ok(());
+        },
+        _ => {}
+    }
+    
     // Define common Android permissions once
     let android_permissions = vec![
         "android.permission.CAMERA",
@@ -86,6 +96,11 @@ fn real_main() -> Result<()> {
         Some(Commands::Launch { url }) => {
             println!("{} {}", "Launching:".green(), url.cyan());
             adb_client.launch_url(&device, url)?;
+            return Ok(());
+        },
+        Some(Commands::Install { file }) => {
+            println!("{} {}", "Installing file:".yellow(), file.display());
+            adb_client.install_file(&device, file)?;
             return Ok(());
         },
         Some(Commands::Grant) => {
@@ -245,6 +260,12 @@ fn real_main() -> Result<()> {
                 adb_client.revoke_permissions(&device, &selected_app.package_name, &perms)?;
                 println!("Permissions revoked successfully.");
             }
+        }
+        Commands::Install { .. } => {
+            unreachable!("Install command should be handled earlier and never reach this point");
+        }
+        Commands::Info { .. } => {
+            unreachable!("Info command should be handled earlier and never reach this point");
         }
     }
     Ok(())

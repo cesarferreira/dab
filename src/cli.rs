@@ -57,4 +57,14 @@ pub enum Commands {
     Grant,
     /// Revoke permissions from an app
     Revoke,
+    /// Install an APK or XAPK file
+    Install {
+        /// Path to the APK or XAPK file to install
+        file: PathBuf,
+    },
+    /// Show info for a local APK or XAPK file
+    Info {
+        /// Path to the APK or XAPK file to analyze
+        file: PathBuf,
+    },
 } 
