@@ -501,12 +501,12 @@ impl AdbClient {
                 println!("{} {}", "Installing APK:".green(), file_path.display());
                 self.install_apk(device, file_path)
             }
-            Some("xapk") => {
-                println!("{} {}", "Installing XAPK:".green(), file_path.display());
+            Some("xapk") | Some("apkm") => {
+                println!("{} {}", "Installing XAPK/APKM:".green(), file_path.display());
                 self.install_xapk(device, file_path)
             }
             _ => {
-                Err(anyhow!("Unsupported file type. Only APK and XAPK files are supported."))
+                Err(anyhow!("Unsupported file type. Only APK, XAPK, and APKM files are supported."))
             }
         }
     }
@@ -613,8 +613,8 @@ impl AdbClient {
 
         match extension.as_deref() {
             Some("apk") => self.analyze_apk(file_path),
-            Some("xapk") => self.analyze_xapk(file_path),
-            _ => Err(anyhow!("Unsupported file type. Only APK and XAPK files are supported.")),
+            Some("xapk") | Some("apkm") => self.analyze_xapk(file_path),
+            _ => Err(anyhow!("Unsupported file type. Only APK, XAPK, and APKM files are supported.")),
         }
     }
 

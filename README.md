@@ -17,9 +17,9 @@ A fast, interactive command-line tool for automating and managing your Android d
 - 🧹 **Clear** app data and cache
 - 💀 **Force kill** stubborn apps
 - 📦 **Download APK** files
-- 📲 **Install APK/XAPK** files from your computer
+- 📲 **Install APK/XAPK/APKM** files from your computer
 - 🔍 **Show app info** (version, permissions, etc)
-- 📄 **Analyze local APK/XAPK** files without installation
+- 📄 **Analyze local APK/XAPK/APKM** files without installation
 - 🛡️ **Grant or revoke app permissions** (multi-select from known permissions)
 - 🤖 **Show device info** (model, Android version, etc)
 - 🌐 **Show network info** (IP, WiFi, etc)
@@ -58,13 +58,15 @@ dab force-kill
 dab download
 dab download --output /path/to/save.apk
 
-# 📲 Install APK or XAPK file
+# 📲 Install APK, XAPK, or APKM file
 dab install /path/to/app.apk
 dab install /path/to/app.xapk
+dab install /path/to/app.apkm
 
-# 📄 Analyze local APK or XAPK file (no device needed)
+# 📄 Analyze local APK, XAPK, or APKM file (no device needed)
 dab info /path/to/app.apk
 dab info /path/to/app.xapk
+dab info /path/to/app.apkm
 
 # 🔍 Show app info
 dab app-info
