@@ -3,6 +3,12 @@
 # dab - Droid Automation Box 📦🤖
 
 <p>
+  <a href="https://crates.io/crates/dab-cli"><img src="https://img.shields.io/crates/v/dab-cli.svg" alt="crates.io version" /></a>
+  <a href="https://crates.io/crates/dab-cli"><img src="https://img.shields.io/crates/d/dab-cli.svg" alt="crates.io downloads" /></a>
+  <a href="https://crates.io/crates/dab-cli"><img src="https://img.shields.io/crates/l/dab-cli.svg" alt="license" /></a>
+</p>
+
+<p>
 A fast, interactive command-line tool for automating and managing your Android device from your computer.
 </p>
 <img src="extras/t-rec.gif" alt="demo" width="100%" />
