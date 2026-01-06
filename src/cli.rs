@@ -25,9 +25,13 @@ pub enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
-    /// Show app info (version, permissions, etc)
+    /// Show app info (version, etc)
     #[command(name = "app-info")]
-    AppInfo,
+    AppInfo {
+        /// Include permissions and other details
+        #[arg(short, long)]
+        all: bool,
+    },
     /// Show device info (model, manufacturer, Android version, etc)
     Device,
     /// Take a screenshot of the device

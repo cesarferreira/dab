@@ -18,7 +18,7 @@ A fast, interactive command-line tool for automating and managing your Android d
 - 💀 **Force kill** stubborn apps
 - 📦 **Download APK** files
 - 📲 **Install APK/XAPK/APKM** files from your computer
-- 🔍 **Show app info** (version, permissions, etc)
+- 🔍 **Show app info** (version, use `--all` for permissions)
 - 📄 **Analyze local APK/XAPK/APKM** files without installation
 - 🛡️ **Grant or revoke app permissions** (multi-select from known permissions)
 - 🤖 **Show device info** (model, Android version, etc)
@@ -70,6 +70,7 @@ dab info /path/to/app.apkm
 
 # 🔍 Show app info
 dab app-info
+dab app-info --all   # include permissions (-a)
 
 # 🛡️ Grant permissions to an app (multi-select)
 dab grant

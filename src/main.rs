@@ -162,7 +162,7 @@ fn real_main() -> Result<()> {
             let selection = Select::new("Select action:", options).prompt()?;
             match selection {
                 "Open" => &Commands::Open,
-                "App Info" => &Commands::AppInfo,
+                "App Info" => &Commands::AppInfo { all: false },
                 "Uninstall" => &Commands::Uninstall,
                 "Clear App Data" => &Commands::Clear,
                 "Force Kill" => &Commands::ForceKill,
@@ -195,9 +195,9 @@ fn real_main() -> Result<()> {
             let output_path = adb_client.download_apk(&device, &selected_app.package_name, output.clone())?;
             println!("APK downloaded to {}", output_path.display());
         }
-        Commands::AppInfo => {
+        Commands::AppInfo { all } => {
             println!("{} {}", "Fetching info for".yellow(), selected_app.app_name);
-            adb_client.get_app_info(&device, &selected_app.package_name)?;
+            adb_client.get_app_info(&device, &selected_app.package_name, *all)?;
         }
         Commands::Device => {
             println!("{}", "Fetching device info...".yellow());

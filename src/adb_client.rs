@@ -131,7 +131,7 @@ impl AdbClient {
         Ok(output_file)
     }
 
-    pub fn get_app_info(&self, device: &str, package_name: &str) -> Result<()> {
+    pub fn get_app_info(&self, device: &str, package_name: &str, show_permissions: bool) -> Result<()> {
         let output = self.run_command(&["-s", device, "shell", "pm", "dump", package_name])?;
         let stdout = String::from_utf8_lossy(&output.stdout);
         let version_code = stdout.lines().find_map(|line| {
@@ -148,26 +148,28 @@ impl AdbClient {
                 None
             }
         }).unwrap_or_else(|| "N/A".to_string());
-        let mut granted_permissions = Vec::new();
-        for line in stdout.lines() {
-            let trimmed = line.trim();
-            if (trimmed.contains("android.permission.") || trimmed.contains("com.android.permission.")) && trimmed.contains("granted=true") {
-                let perm = trimmed.split(':').next().unwrap_or("").split_whitespace().next().unwrap_or("");
-                if !perm.is_empty() && !granted_permissions.contains(&perm.to_string()) {
-                    granted_permissions.push(perm.to_string());
-                }
-            }
-        }
         println!("{}", "\nApp Info".bold().underline().yellow());
         println!("{}: {}", "Package Name".cyan(), package_name.green());
         println!("{}: {}", "Version Code".cyan(), version_code.green());
         println!("{}: {}", "Version Name".cyan(), version_name.green());
-        println!("{}:", "Granted Permissions".cyan());
-        if granted_permissions.is_empty() {
-            println!("  {}", "None".red());
-        } else {
-            for perm in granted_permissions {
-                println!("  {}", perm.blue());
+        if show_permissions {
+            let mut granted_permissions = Vec::new();
+            for line in stdout.lines() {
+                let trimmed = line.trim();
+                if (trimmed.contains("android.permission.") || trimmed.contains("com.android.permission.")) && trimmed.contains("granted=true") {
+                    let perm = trimmed.split(':').next().unwrap_or("").split_whitespace().next().unwrap_or("");
+                    if !perm.is_empty() && !granted_permissions.contains(&perm.to_string()) {
+                        granted_permissions.push(perm.to_string());
+                    }
+                }
+            }
+            println!("{}:", "Granted Permissions".cyan());
+            if granted_permissions.is_empty() {
+                println!("  {}", "None".red());
+            } else {
+                for perm in granted_permissions {
+                    println!("  {}", perm.blue());
+                }
             }
         }
         Ok(())
