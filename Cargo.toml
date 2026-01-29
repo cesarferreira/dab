@@ -5,8 +5,8 @@ edition = "2021"
 description = "Android package manager CLI tool"
 authors = ["César Ferreira"]
 license = "MIT"
-repository = "https://github.com/cesarferreira/xxx"
-homepage = "https://github.com/cesarferreira/xxx"
+repository = "https://github.com/cesarferreira/dab"
+homepage = "https://github.com/cesarferreira/dab"
 readme = "README.md"
 
 [[bin]]
