@@ -16,6 +16,42 @@ A fast, interactive command-line tool for automating and managing your Android d
 
 
 
+## AI Agent Support
+
+`dab` is designed to work seamlessly with AI agents (Claude, Cursor, Codex, etc.) through structured JSON output and non-interactive flags.
+
+```bash
+# Let the agent discover devices
+dab devices --json
+
+# Run any command non-interactively
+dab health  --device emulator-5554 --json
+dab apps    --device emulator-5554 --json
+dab open    --device emulator-5554 --package com.example.app --json
+dab install build/app.apk --device emulator-5554 --json
+```
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Emit structured JSON instead of colored text |
+| `--device <SERIAL>` | Target a specific device, no prompt |
+| `--package <NAME>` | Target a specific app, no prompt |
+| `--permissions <LIST>` | Comma-separated permissions for `grant`/`revoke` |
+
+See [`SKILL.md`](SKILL.md) for the full agent guide with JSON examples for every command.
+
+### Install the skill
+
+Copy `SKILL.md` into your AI agent's skills directory so it automatically knows how to use `dab`:
+
+```bash
+bash scripts/install-skill.sh          # auto-detects ~/.cursor/skills, ~/.claude/skills, etc.
+bash scripts/install-skill.sh --dest ~/.cursor/skills   # custom location
+bash scripts/install-skill.sh --dry-run                 # preview without changes
+```
+
+---
+
 ## Features
 
 - 🚀 **Open** installed apps
@@ -48,17 +84,27 @@ dab
 Or use direct commands:
 
 ```bash
+# 📱 List connected devices
+dab devices
+
+# 📦 List installed apps
+dab apps
+
 # 🚀 Open an app
 dab open
+dab open --package com.example.app --device emulator-5554
 
 # 🗑️ Uninstall an app
 dab uninstall
+dab uninstall --package com.example.app --device emulator-5554
 
 # 🧹 Clear app data
 dab clear
+dab clear --package com.example.app --device emulator-5554
 
 # 💀 Force kill an app
 dab force-kill
+dab force-kill --package com.example.app --device emulator-5554
 
 # 📦 Download APK (optionally specify output path)
 dab download
@@ -78,11 +124,13 @@ dab info /path/to/app.apkm
 dab app-info
 dab app-info --all   # include permissions (-a)
 
-# 🛡️ Grant permissions to an app (multi-select)
+# 🛡️ Grant permissions to an app (multi-select, or pass --permissions for agents)
 dab grant
+dab grant --package com.example.app --permissions "android.permission.CAMERA,android.permission.RECORD_AUDIO"
 
-# 🛡️ Revoke permissions from an app (multi-select)
+# 🛡️ Revoke permissions from an app (multi-select, or pass --permissions for agents)
 dab revoke
+dab revoke --package com.example.app --permissions "android.permission.CAMERA"
 
 # 🤖 Show device info
 dab device

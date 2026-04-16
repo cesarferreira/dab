@@ -6,6 +6,7 @@ use anyhow::{anyhow, Result};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use ctrlc;
 use colored::*;
+use serde_json::{json, Value};
 use super::app::App;
 use std::fs;
 use zip::ZipArchive;
@@ -51,6 +52,13 @@ impl AdbClient {
         Ok(devices)
     }
 
+    pub fn get_device_list_json(&self) -> Value {
+        match self.get_device_list() {
+            Ok(devices) => json!({ "devices": devices }),
+            Err(e) => json!({ "error": e.to_string(), "devices": [] }),
+        }
+    }
+
     pub fn get_installed_apps(&self, device: &str) -> Result<Vec<App>> {
         let output = self.run_command(&["-s", device, "shell", "pm", "list", "packages"])?;
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -65,6 +73,16 @@ impl AdbClient {
             .map(|package_name| App::new(&package_name, &package_name))
             .collect();
         Ok(apps)
+    }
+
+    pub fn get_installed_apps_json(&self, device: &str) -> Value {
+        match self.get_installed_apps(device) {
+            Ok(apps) => {
+                let names: Vec<&str> = apps.iter().map(|a| a.package_name.as_str()).collect();
+                json!({ "device": device, "apps": names })
+            }
+            Err(e) => json!({ "error": e.to_string(), "apps": [] }),
+        }
     }
 
     pub fn get_device_apk_path(&self, device: &str, package_name: &str) -> Result<String> {
@@ -175,6 +193,43 @@ impl AdbClient {
         Ok(())
     }
 
+    pub fn get_app_info_json(&self, device: &str, package_name: &str, include_permissions: bool) -> Value {
+        let output = match self.run_command(&["-s", device, "shell", "pm", "dump", package_name]) {
+            Ok(o) => o,
+            Err(e) => return json!({ "error": e.to_string() }),
+        };
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let version_code = stdout.lines().find_map(|line| {
+            if line.trim().starts_with("versionCode=") {
+                line.trim().split('=').nth(1).map(|s| s.split_whitespace().next().unwrap_or("").to_string())
+            } else { None }
+        }).unwrap_or_else(|| "N/A".to_string());
+        let version_name = stdout.lines().find_map(|line| {
+            if line.trim().starts_with("versionName=") {
+                line.trim().split('=').nth(1).map(|s| s.to_string())
+            } else { None }
+        }).unwrap_or_else(|| "N/A".to_string());
+        let mut result = json!({
+            "package_name": package_name,
+            "version_code": version_code,
+            "version_name": version_name,
+        });
+        if include_permissions {
+            let mut granted: Vec<String> = Vec::new();
+            for line in stdout.lines() {
+                let trimmed = line.trim();
+                if (trimmed.contains("android.permission.") || trimmed.contains("com.android.permission.")) && trimmed.contains("granted=true") {
+                    let perm = trimmed.split(':').next().unwrap_or("").split_whitespace().next().unwrap_or("");
+                    if !perm.is_empty() && !granted.contains(&perm.to_string()) {
+                        granted.push(perm.to_string());
+                    }
+                }
+            }
+            result["granted_permissions"] = json!(granted);
+        }
+        result
+    }
+
     pub fn get_device_info(&self, device: &str) -> Result<()> {
         let output = self.run_command(&["-s", device, "shell", "getprop"])?;
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -226,6 +281,43 @@ impl AdbClient {
             }
         }
         Ok(())
+    }
+
+    pub fn get_device_info_json(&self, device: &str) -> Value {
+        let output = match self.run_command(&["-s", device, "shell", "getprop"]) {
+            Ok(o) => o,
+            Err(e) => return json!({ "error": e.to_string() }),
+        };
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let relevant_keys = [
+            ("ro.product.model", "model"),
+            ("ro.product.manufacturer", "manufacturer"),
+            ("ro.product.brand", "brand"),
+            ("ro.product.device", "device"),
+            ("ro.product.name", "name"),
+            ("ro.build.version.release", "android_version"),
+            ("ro.build.version.sdk", "sdk"),
+            ("ro.build.version.codename", "codename"),
+            ("ro.product.board", "board"),
+            ("ro.product.cpu.abi", "cpu_abi"),
+            ("ro.product.locale", "locale"),
+            ("ro.build.id", "build_id"),
+            ("ro.build.version.security_patch", "security_patch"),
+        ];
+        let mut info = serde_json::Map::new();
+        for line in stdout.lines() {
+            if let Some((key, value)) = line.split_once("]: [") {
+                let key = key.trim_start_matches('[');
+                let value = value.trim_end_matches(']');
+                for &(prop, label) in &relevant_keys {
+                    if key == prop {
+                        info.insert(label.to_string(), json!(value));
+                    }
+                }
+            }
+        }
+        info.insert("serial".to_string(), json!(device));
+        Value::Object(info)
     }
 
     pub fn take_screenshot(&self, device: &str, output_path: Option<PathBuf>) -> Result<PathBuf> {
@@ -334,6 +426,40 @@ impl AdbClient {
         println!("\n{}", "WiFi Info".bold().underline().yellow());
         println!("{} {}", "SSID:".cyan(), ssid.unwrap_or_else(|| "N/A".to_string()).green());
         Ok(())
+    }
+
+    pub fn get_network_info_json(&self, device: &str) -> Value {
+        let mut ip_addresses: Vec<String> = Vec::new();
+        if let Ok(output) = self.run_command(&["-s", device, "shell", "ip", "-4", "addr", "show"]) {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                if let Some(ip) = line.trim().strip_prefix("inet ") {
+                    let ip_only = ip.split('/').next().unwrap_or("").split_whitespace().next().unwrap_or("").to_string();
+                    if !ip_only.is_empty() {
+                        ip_addresses.push(ip_only);
+                    }
+                }
+            }
+        }
+        let mut ssid = Value::Null;
+        if let Ok(output) = self.run_command(&["-s", device, "shell", "dumpsys", "wifi"]) {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                if let Some(idx) = line.find("SSID:") {
+                    let after = &line[idx + 5..];
+                    let mut ssid_val = after.trim().split(',').next().unwrap_or("").trim().to_string();
+                    while ssid_val.starts_with('"') || ssid_val.ends_with('"') {
+                        ssid_val = ssid_val.trim_matches('"').to_string();
+                    }
+                    ssid_val = ssid_val.trim().to_string();
+                    if !ssid_val.is_empty() && ssid_val != "<unknown ssid>" && ssid_val != "0x0" {
+                        ssid = json!(ssid_val);
+                        break;
+                    }
+                }
+            }
+        }
+        json!({ "device": device, "ip_addresses": ip_addresses, "ssid": ssid })
     }
 
     pub fn enable_wifi(&self, device: &str) -> Result<()> {
@@ -454,6 +580,98 @@ impl AdbClient {
         println!("{} {:.2} GB free / {:.2} GB total", "RAM:".cyan(), free_ram_gb, total_ram_gb);
         println!("{} {} (SSID: {})", "Network:".cyan(), ip.green(), ssid.green());
         Ok(())
+    }
+
+    pub fn get_device_health_json(&self, device: &str) -> Value {
+        let mut battery_level = Value::Null;
+        let mut battery_status = Value::Null;
+        if let Ok(output) = self.run_command(&["-s", device, "shell", "dumpsys", "battery"]) {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                if line.trim().starts_with("level:") {
+                    battery_level = json!(line.trim().split(':').nth(1).unwrap_or("").trim().to_string());
+                }
+                if line.trim().starts_with("status:") {
+                    battery_status = json!(line.trim().split(':').nth(1).unwrap_or("").trim().to_string());
+                }
+            }
+        }
+        let mut storage = json!(null);
+        if let Ok(output) = self.run_command(&["-s", device, "shell", "df", "/data"]) {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines().skip(1) {
+                let cols: Vec<&str> = line.split_whitespace().collect();
+                if cols.len() >= 5 {
+                    let total_kb = cols[1].replace(",", "").parse::<f64>().unwrap_or(0.0);
+                    let used_kb = cols[2].replace(",", "").parse::<f64>().unwrap_or(0.0);
+                    let free_kb = cols[3].replace(",", "").parse::<f64>().unwrap_or(0.0);
+                    storage = json!({
+                        "total_gb": (total_kb / 1024.0 / 1024.0 * 100.0).round() / 100.0,
+                        "used_gb": (used_kb / 1024.0 / 1024.0 * 100.0).round() / 100.0,
+                        "free_gb": (free_kb / 1024.0 / 1024.0 * 100.0).round() / 100.0,
+                        "percent_used": if total_kb > 0.0 { (used_kb / total_kb * 1000.0).round() / 10.0 } else { 0.0 },
+                    });
+                    break;
+                }
+            }
+        }
+        let mut total_ram_gb = 0.0f64;
+        let mut free_ram_gb = 0.0f64;
+        if let Ok(output) = self.run_command(&["-s", device, "shell", "cat", "/proc/meminfo"]) {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let mut total_kb = None;
+            let mut free_kb = None;
+            for line in stdout.lines() {
+                if line.starts_with("MemTotal:") {
+                    total_kb = line.replace("MemTotal:", "").trim().split_whitespace().next().and_then(|v| v.parse::<f64>().ok());
+                }
+                if line.starts_with("MemAvailable:") {
+                    free_kb = line.replace("MemAvailable:", "").trim().split_whitespace().next().and_then(|v| v.parse::<f64>().ok());
+                }
+            }
+            if let (Some(t), Some(f)) = (total_kb, free_kb) {
+                total_ram_gb = (t / 1024.0 / 1024.0 * 100.0).round() / 100.0;
+                free_ram_gb = (f / 1024.0 / 1024.0 * 100.0).round() / 100.0;
+            }
+        }
+        let mut ip = Value::Null;
+        let mut ssid = Value::Null;
+        if let Ok(output) = self.run_command(&["-s", device, "shell", "ip", "-4", "addr", "show"]) {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                if let Some(ip_line) = line.trim().strip_prefix("inet ") {
+                    let candidate = ip_line.split_whitespace().next().unwrap_or("").split('/').next().unwrap_or("").to_string();
+                    if candidate != "127.0.0.1" && !candidate.is_empty() {
+                        ip = json!(candidate);
+                        break;
+                    }
+                }
+            }
+        }
+        if let Ok(output) = self.run_command(&["-s", device, "shell", "dumpsys", "wifi"]) {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                if let Some(idx) = line.find("SSID:") {
+                    let after = &line[idx + 5..];
+                    let mut ssid_val = after.trim().split(',').next().unwrap_or("").trim().to_string();
+                    while ssid_val.starts_with('"') || ssid_val.ends_with('"') {
+                        ssid_val = ssid_val.trim_matches('"').to_string();
+                    }
+                    ssid_val = ssid_val.trim().to_string();
+                    if !ssid_val.is_empty() && ssid_val != "<unknown ssid>" && ssid_val != "0x0" {
+                        ssid = json!(ssid_val);
+                        break;
+                    }
+                }
+            }
+        }
+        json!({
+            "device": device,
+            "battery": { "level": battery_level, "status": battery_status },
+            "storage": storage,
+            "ram": { "total_gb": total_ram_gb, "free_gb": free_ram_gb },
+            "network": { "ip": ip, "ssid": ssid },
+        })
     }
 
     pub fn launch_url(&self, device: &str, url: &str) -> Result<()> {
@@ -631,6 +849,172 @@ impl AdbClient {
 
         // Fallback to basic ZIP analysis
         self.analyze_apk_basic(apk_path)
+    }
+
+    pub fn analyze_local_file_json(&self, file_path: &PathBuf) -> Value {
+        let extension = file_path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.to_lowercase());
+        match extension.as_deref() {
+            Some("apk") => self.analyze_apk_json(file_path),
+            Some("xapk") | Some("apkm") => self.analyze_xapk_json(file_path),
+            _ => json!({ "error": "Unsupported file type. Only APK, XAPK, and APKM files are supported." }),
+        }
+    }
+
+    fn analyze_apk_json(&self, apk_path: &PathBuf) -> Value {
+        let aapt_commands = ["aapt", "aapt2"];
+        for &cmd in &aapt_commands {
+            if let Ok(aapt_path) = which::which(cmd) {
+                let output = Command::new(&aapt_path)
+                    .args(["dump", "badging", &apk_path.to_string_lossy()])
+                    .output();
+                if let Ok(output) = output {
+                    if output.status.success() {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        return self.parse_aapt_output_json(&stdout, apk_path);
+                    }
+                }
+            }
+        }
+        self.analyze_apk_basic_json(apk_path)
+    }
+
+    fn parse_aapt_output_json(&self, aapt_output: &str, apk_path: &PathBuf) -> Value {
+        let mut package_name = "N/A".to_string();
+        let mut version_code = "N/A".to_string();
+        let mut version_name = "N/A".to_string();
+        let mut app_name = "N/A".to_string();
+        let mut permissions: Vec<String> = Vec::new();
+        for line in aapt_output.lines() {
+            let line = line.trim();
+            if line.starts_with("package:") {
+                if let Some(s) = line.find("name='") {
+                    if let Some(e) = line[s + 6..].find("'") { package_name = line[s + 6..s + 6 + e].to_string(); }
+                }
+                if let Some(s) = line.find("versionCode='") {
+                    if let Some(e) = line[s + 13..].find("'") { version_code = line[s + 13..s + 13 + e].to_string(); }
+                }
+                if let Some(s) = line.find("versionName='") {
+                    if let Some(e) = line[s + 13..].find("'") {
+                        let v = line[s + 13..s + 13 + e].to_string();
+                        version_name = if v.is_empty() { "Not set".to_string() } else { v };
+                    }
+                } else if let Some(s) = line.find("versionName=\"") {
+                    if let Some(e) = line[s + 13..].find('"') {
+                        let v = line[s + 13..s + 13 + e].to_string();
+                        version_name = if v.is_empty() { "Not set".to_string() } else { v };
+                    }
+                }
+            } else if line.starts_with("application-label:") {
+                let label = line.replace("application-label:", "").trim().trim_matches('\'').trim_matches('"').to_string();
+                if !label.is_empty() { app_name = label; }
+            } else if line.starts_with("application-label-") && app_name == "N/A" {
+                let label = line.split(':').nth(1).unwrap_or("").trim().trim_matches('\'').trim_matches('"').to_string();
+                if !label.is_empty() { app_name = label; }
+            } else if line.starts_with("uses-permission:") {
+                let perm = if let Some(s) = line.find("name='") {
+                    line[s + 6..].find("'").map(|e| line[s + 6..s + 6 + e].to_string())
+                } else if let Some(s) = line.find("name=\"") {
+                    line[s + 6..].find('"').map(|e| line[s + 6..s + 6 + e].to_string())
+                } else { None };
+                if let Some(p) = perm {
+                    if !permissions.contains(&p) { permissions.push(p); }
+                }
+            }
+        }
+        json!({
+            "file": apk_path.to_string_lossy(),
+            "package_name": package_name,
+            "app_name": app_name,
+            "version_code": version_code,
+            "version_name": version_name,
+            "permissions": permissions,
+        })
+    }
+
+    fn analyze_apk_basic_json(&self, apk_path: &PathBuf) -> Value {
+        let file = match fs::File::open(apk_path) {
+            Ok(f) => f,
+            Err(e) => return json!({ "error": e.to_string() }),
+        };
+        let mut archive = match ZipArchive::new(file) {
+            Ok(a) => a,
+            Err(e) => return json!({ "error": e.to_string() }),
+        };
+        let total_files = archive.len();
+        let mut has_manifest = false;
+        let mut dex_count = 0;
+        let mut assets_count = 0;
+        let mut res_count = 0;
+        for i in 0..total_files {
+            if let Ok(f) = archive.by_index(i) {
+                let name = f.name();
+                if name == "AndroidManifest.xml" { has_manifest = true; }
+                else if name.starts_with("classes") && name.ends_with(".dex") { dex_count += 1; }
+                else if name.starts_with("assets/") { assets_count += 1; }
+                else if name.starts_with("res/") { res_count += 1; }
+            }
+        }
+        let size_mb = fs::metadata(apk_path).map(|m| (m.len() as f64 / 1024.0 / 1024.0 * 100.0).round() / 100.0).ok();
+        json!({
+            "file": apk_path.to_string_lossy(),
+            "has_manifest": has_manifest,
+            "dex_files": dex_count,
+            "asset_files": assets_count,
+            "resource_files": res_count,
+            "total_files": total_files,
+            "size_mb": size_mb,
+            "note": "Install aapt or aapt2 from Android SDK for full package info",
+        })
+    }
+
+    fn analyze_xapk_json(&self, xapk_path: &PathBuf) -> Value {
+        let temp_dir = std::env::temp_dir().join(format!("dab_xapk_analysis_{}", std::process::id()));
+        if fs::create_dir_all(&temp_dir).is_err() {
+            return json!({ "error": "Failed to create temp directory" });
+        }
+        let file = match fs::File::open(xapk_path) {
+            Ok(f) => f,
+            Err(e) => return json!({ "error": e.to_string() }),
+        };
+        let mut archive = match ZipArchive::new(file) {
+            Ok(a) => a,
+            Err(e) => return json!({ "error": e.to_string() }),
+        };
+        for i in 0..archive.len() {
+            if let Ok(mut entry) = archive.by_index(i) {
+                let outpath = match entry.enclosed_name() {
+                    Some(p) => temp_dir.join(p),
+                    None => continue,
+                };
+                if entry.name().ends_with('/') {
+                    let _ = fs::create_dir_all(&outpath);
+                } else {
+                    if let Some(parent) = outpath.parent() {
+                        let _ = fs::create_dir_all(parent);
+                    }
+                    if let Ok(mut out) = fs::File::create(&outpath) {
+                        let _ = std::io::copy(&mut entry, &mut out);
+                    }
+                }
+            }
+        }
+        let mut apk_files = Vec::new();
+        let _ = self.find_apk_files(&temp_dir, &mut apk_files);
+        if apk_files.is_empty() {
+            let _ = fs::remove_dir_all(&temp_dir);
+            return json!({ "error": "No APK files found in XAPK" });
+        }
+        let base_apk = match self.find_base_apk(&apk_files) {
+            Ok(p) => p,
+            Err(e) => { let _ = fs::remove_dir_all(&temp_dir); return json!({ "error": e.to_string() }); }
+        };
+        let mut result = self.analyze_apk_json(&base_apk);
+        result["source_file"] = json!(xapk_path.to_string_lossy());
+        result["apk_count"] = json!(apk_files.len());
+        let _ = fs::remove_dir_all(&temp_dir);
+        result
     }
 
     fn analyze_apk_with_aapt(&self, apk_path: &PathBuf) -> Result<()> {
