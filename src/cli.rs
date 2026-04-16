@@ -7,27 +7,61 @@ use std::path::PathBuf;
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
+
+    /// Output results as JSON — useful for AI agents and scripting
+    #[arg(long, global = true)]
+    pub json: bool,
+
+    /// Target a specific device by serial number, skipping interactive selection
+    #[arg(long, global = true, value_name = "SERIAL")]
+    pub device: Option<String>,
 }
 
 #[derive(Subcommand)]
 pub enum Commands {
+    /// List connected ADB devices
+    Devices,
+    /// List all installed apps on the device
+    Apps,
     /// Open an app
-    Open,
+    Open {
+        /// Package name — skips interactive selection
+        #[arg(long, value_name = "PACKAGE")]
+        package: Option<String>,
+    },
     /// Uninstall an app
-    Uninstall,
+    Uninstall {
+        /// Package name — skips interactive selection
+        #[arg(long, value_name = "PACKAGE")]
+        package: Option<String>,
+    },
     /// Clear app data
-    Clear,
+    Clear {
+        /// Package name — skips interactive selection
+        #[arg(long, value_name = "PACKAGE")]
+        package: Option<String>,
+    },
     /// Force kill an app
     #[command(name = "force-kill")]
-    ForceKill,
+    ForceKill {
+        /// Package name — skips interactive selection
+        #[arg(long, value_name = "PACKAGE")]
+        package: Option<String>,
+    },
     /// Download APK
     Download {
+        /// Package name — skips interactive selection
+        #[arg(long, value_name = "PACKAGE")]
+        package: Option<String>,
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
     /// Show app info (version, etc)
     #[command(name = "app-info")]
     AppInfo {
+        /// Package name — skips interactive selection
+        #[arg(long, value_name = "PACKAGE")]
+        package: Option<String>,
         /// Include permissions and other details
         #[arg(short, long)]
         all: bool,
@@ -58,9 +92,23 @@ pub enum Commands {
         url: String,
     },
     /// Grant permissions to an app
-    Grant,
+    Grant {
+        /// Package name — skips interactive selection
+        #[arg(long, value_name = "PACKAGE")]
+        package: Option<String>,
+        /// Comma-separated list of permissions — skips interactive selection
+        #[arg(long, value_name = "PERMISSIONS")]
+        permissions: Option<String>,
+    },
     /// Revoke permissions from an app
-    Revoke,
+    Revoke {
+        /// Package name — skips interactive selection
+        #[arg(long, value_name = "PACKAGE")]
+        package: Option<String>,
+        /// Comma-separated list of permissions — skips interactive selection
+        #[arg(long, value_name = "PERMISSIONS")]
+        permissions: Option<String>,
+    },
     /// Install an APK, XAPK, or APKM file
     Install {
         /// Path to the APK, XAPK, or APKM file to install
@@ -71,4 +119,4 @@ pub enum Commands {
         /// Path to the APK, XAPK, or APKM file to analyze
         file: PathBuf,
     },
-} 
+}
