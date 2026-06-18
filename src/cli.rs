@@ -120,3 +120,56 @@ pub enum Commands {
         file: PathBuf,
     },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn verify_cli() {
+        use clap::CommandFactory;
+        Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn parses_global_json_flag_with_devices() {
+        let cli = Cli::try_parse_from(["dab", "--json", "devices"]).unwrap();
+        assert!(cli.json);
+        assert!(matches!(cli.command, Some(Commands::Devices)));
+    }
+
+    #[test]
+    fn parses_uninstall_package() {
+        let cli = Cli::try_parse_from(["dab", "uninstall", "--package", "com.foo"]).unwrap();
+        match cli.command {
+            Some(Commands::Uninstall { package }) => {
+                assert_eq!(package.as_deref(), Some("com.foo"));
+            }
+            _ => panic!("expected uninstall command"),
+        }
+    }
+
+    #[test]
+    fn parses_grant_package_and_permissions() {
+        let cli = Cli::try_parse_from([
+            "dab",
+            "grant",
+            "--package",
+            "com.foo",
+            "--permissions",
+            "a,b",
+        ])
+        .unwrap();
+        match cli.command {
+            Some(Commands::Grant {
+                package,
+                permissions,
+            }) => {
+                assert_eq!(package.as_deref(), Some("com.foo"));
+                assert_eq!(permissions.as_deref(), Some("a,b"));
+            }
+            _ => panic!("expected grant command"),
+        }
+    }
+}
