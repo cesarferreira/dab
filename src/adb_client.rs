@@ -397,3 +397,64 @@ fn parse_granted_permissions(dump: &str) -> Vec<String> {
     }
     granted
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_versions_extracts_code_and_name() {
+        let dump = "\
+    Packages:
+      Package [com.example.app] (a1b2c3):
+        versionCode=12345 minSdk=21 targetSdk=33
+        versionName=1.2.3
+        flags=[ ... ]";
+        let (code, name) = parse_versions(dump);
+        assert_eq!(code, "12345");
+        assert_eq!(name, "1.2.3");
+    }
+
+    #[test]
+    fn parse_versions_falls_back_to_na_when_missing() {
+        let dump = "\
+    Packages:
+      Package [com.example.app] (a1b2c3):
+        flags=[ ... ]
+        dataDir=/data/user/0/com.example.app";
+        let (code, name) = parse_versions(dump);
+        assert_eq!(code, "N/A");
+        assert_eq!(name, "N/A");
+    }
+
+    #[test]
+    fn parse_granted_permissions_returns_granted_deduped_in_order() {
+        let dump = "\
+    requested permissions:
+      android.permission.INTERNET
+      android.permission.CAMERA
+    install permissions:
+      android.permission.INTERNET: granted=true
+      android.permission.CAMERA: granted=false
+      com.android.permission.SPECIAL: granted=true
+      android.permission.INTERNET: granted=true
+      android.permission.ACCESS_FINE_LOCATION: granted=true";
+        let granted = parse_granted_permissions(dump);
+        assert_eq!(
+            granted,
+            vec![
+                "android.permission.INTERNET".to_string(),
+                "com.android.permission.SPECIAL".to_string(),
+                "android.permission.ACCESS_FINE_LOCATION".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_granted_permissions_empty_when_none_granted() {
+        let dump = "\
+      android.permission.INTERNET: granted=false
+      android.permission.CAMERA: granted=false";
+        assert!(parse_granted_permissions(dump).is_empty());
+    }
+}
