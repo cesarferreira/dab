@@ -21,9 +21,9 @@ dependencies = [
 
 [[package]]
 name = "androkit"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a43028793aec4d8a79c4f004b5b036920fed89be4c06595d061df9e9bc54ba3"
+checksum = "865e28a8e88747e5e9daa332ec95a27d1820f8e5484109bdd3610905f18ef01e"
 dependencies = [
  "anyhow",
  "ctrlc",

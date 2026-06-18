@@ -14,7 +14,7 @@ name = "dab"
 path = "src/main.rs"
 
 [dependencies]
-androkit = "0.2"
+androkit = "0.3"
 clap = { version = "4.4", features = ["derive"] }
 inquire = "0.6"
 colored = "2.0"
