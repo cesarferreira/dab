@@ -1,13 +1,13 @@
-mod cli;
-mod app;
 mod adb_client;
+mod app;
+mod cli;
 
+use adb_client::AdbClient;
 use anyhow::Result;
 use clap::Parser;
-use colored::*;
-use inquire::{Select, MultiSelect};
 use cli::{Cli, Commands};
-use adb_client::AdbClient;
+use colored::*;
+use inquire::{MultiSelect, Select};
 
 fn real_main() -> Result<()> {
     let cli = Cli::parse();
@@ -19,7 +19,10 @@ fn real_main() -> Result<()> {
     // `dab devices` — list connected devices
     if matches!(&cli.command, Some(Commands::Devices)) {
         if json {
-            println!("{}", serde_json::to_string_pretty(&adb_client.get_device_list_json())?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&adb_client.get_device_list_json())?
+            );
         } else {
             let devices = adb_client.get_device_list()?;
             println!("{}", "Connected devices:".bold().yellow());
@@ -33,7 +36,10 @@ fn real_main() -> Result<()> {
     // `dab info <file>` — analyze local APK/XAPK/APKM
     if let Some(Commands::Info { file }) = &cli.command {
         if json {
-            println!("{}", serde_json::to_string_pretty(&adb_client.analyze_local_file_json(file))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&adb_client.analyze_local_file_json(file))?
+            );
         } else {
             println!("{} {}", "Analyzing file:".yellow(), file.display());
             adb_client.analyze_local_file(file)?;
@@ -59,7 +65,10 @@ fn real_main() -> Result<()> {
     match &cli.command {
         Some(Commands::Apps) => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&adb_client.get_installed_apps_json(&device))?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&adb_client.get_installed_apps_json(&device))?
+                );
             } else {
                 let apps = adb_client.get_installed_apps(&device)?;
                 println!("{}", "Installed apps:".bold().yellow());
@@ -71,7 +80,10 @@ fn real_main() -> Result<()> {
         }
         Some(Commands::Device) => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&adb_client.get_device_info_json(&device))?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&adb_client.get_device_info_json(&device))?
+                );
             } else {
                 println!("{}", "Fetching device info...".yellow());
                 adb_client.get_device_info(&device)?;
@@ -80,7 +92,10 @@ fn real_main() -> Result<()> {
         }
         Some(Commands::Network) => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&adb_client.get_network_info_json(&device))?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&adb_client.get_network_info_json(&device))?
+                );
             } else {
                 println!("{}", "Fetching network info...".yellow());
                 adb_client.get_network_info(&device)?;
@@ -89,7 +104,10 @@ fn real_main() -> Result<()> {
         }
         Some(Commands::Health) => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&adb_client.get_device_health_json(&device))?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&adb_client.get_device_health_json(&device))?
+                );
             } else {
                 println!("{}", "Checking device health...".yellow());
                 adb_client.get_device_health(&device)?;
@@ -99,7 +117,10 @@ fn real_main() -> Result<()> {
         Some(Commands::Screenshot { output }) => {
             let path = adb_client.take_screenshot(&device, output.clone())?;
             if json {
-                println!("{}", serde_json::json!({ "output": path.to_string_lossy() }));
+                println!(
+                    "{}",
+                    serde_json::json!({ "output": path.to_string_lossy() })
+                );
             }
             return Ok(());
         }
@@ -107,32 +128,50 @@ fn real_main() -> Result<()> {
             println!("{}", "Recording screen...".yellow());
             let path = adb_client.record_screen(&device, output.clone())?;
             if json {
-                println!("{}", serde_json::json!({ "output": path.to_string_lossy() }));
+                println!(
+                    "{}",
+                    serde_json::json!({ "output": path.to_string_lossy() })
+                );
             }
             return Ok(());
         }
         Some(Commands::Wifi) => {
             println!("{}", "Setting up ADB over Wi-Fi...".yellow());
             adb_client.enable_wifi(&device)?;
-            if json { println!("{}", serde_json::json!({ "success": true })); }
+            if json {
+                println!("{}", serde_json::json!({ "success": true }));
+            }
             return Ok(());
         }
         Some(Commands::Usb) => {
             println!("{}", "Switching ADB to USB mode...".yellow());
             adb_client.enable_usb(&device)?;
-            if json { println!("{}", serde_json::json!({ "success": true })); }
+            if json {
+                println!("{}", serde_json::json!({ "success": true }));
+            }
             return Ok(());
         }
         Some(Commands::Launch { url }) => {
-            if !json { println!("{} {}", "Launching:".green(), url.cyan()); }
+            if !json {
+                println!("{} {}", "Launching:".green(), url.cyan());
+            }
             adb_client.launch_url(&device, url)?;
-            if json { println!("{}", serde_json::json!({ "success": true, "url": url })); }
+            if json {
+                println!("{}", serde_json::json!({ "success": true, "url": url }));
+            }
             return Ok(());
         }
         Some(Commands::Install { file }) => {
-            if !json { println!("{} {}", "Installing file:".yellow(), file.display()); }
+            if !json {
+                println!("{} {}", "Installing file:".yellow(), file.display());
+            }
             adb_client.install_file(&device, file)?;
-            if json { println!("{}", serde_json::json!({ "success": true, "file": file.to_string_lossy() })); }
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({ "success": true, "file": file.to_string_lossy() })
+                );
+            }
             return Ok(());
         }
         _ => {}
@@ -184,18 +223,25 @@ fn real_main() -> Result<()> {
         pkg.to_string()
     } else if cli.command.is_some() {
         // A subcommand was given but no --package: show app picker
-        if !json { println!("{}", "Loading installed apps...".yellow()); }
+        if !json {
+            println!("{}", "Loading installed apps...".yellow());
+        }
         let apps = adb_client.get_installed_apps(&device)?;
         if apps.is_empty() {
             if json {
-                println!("{}", serde_json::json!({ "error": "No installed apps found" }));
+                println!(
+                    "{}",
+                    serde_json::json!({ "error": "No installed apps found" })
+                );
             } else {
                 println!("{}", "No installed apps found.".yellow());
             }
             return Ok(());
         }
         let app_strings: Vec<String> = apps.iter().map(|a| a.package_name.clone()).collect();
-        Select::new("Select app:", app_strings).with_page_size(15).prompt()?
+        Select::new("Select app:", app_strings)
+            .with_page_size(15)
+            .prompt()?
     } else {
         // No subcommand at all: full interactive UI
         println!("{}", "Loading installed apps...".yellow());
@@ -205,61 +251,126 @@ fn real_main() -> Result<()> {
             return Ok(());
         }
         let app_strings: Vec<String> = apps.iter().map(|a| a.package_name.clone()).collect();
-        Select::new("Select app:", app_strings).with_page_size(15).prompt()?
+        Select::new("Select app:", app_strings)
+            .with_page_size(15)
+            .prompt()?
     };
 
     // When no subcommand was given, show the action menu
-    let effective_command: Commands = if cli.command.is_none() {
-        let options = vec!["Open", "App Info", "Uninstall", "Clear App Data", "Force Kill", "Download APK", "Grant Permissions", "Revoke Permissions"];
-        let selection = Select::new("Select action:", options).prompt()?;
-        match selection {
-            "Open"             => Commands::Open { package: None },
-            "App Info"         => Commands::AppInfo { package: None, all: false },
-            "Uninstall"        => Commands::Uninstall { package: None },
-            "Clear App Data"   => Commands::Clear { package: None },
-            "Force Kill"       => Commands::ForceKill { package: None },
-            "Download APK"     => Commands::Download { package: None, output: None },
-            "Grant Permissions"  => Commands::Grant { package: None, permissions: None },
-            "Revoke Permissions" => Commands::Revoke { package: None, permissions: None },
-            _ => unreachable!(),
+    let effective_command: Commands = match cli.command {
+        Some(command) => command,
+        None => {
+            let options = vec![
+                "Open",
+                "App Info",
+                "Uninstall",
+                "Clear App Data",
+                "Force Kill",
+                "Download APK",
+                "Grant Permissions",
+                "Revoke Permissions",
+            ];
+            let selection = Select::new("Select action:", options).prompt()?;
+            match selection {
+                "Open" => Commands::Open { package: None },
+                "App Info" => Commands::AppInfo {
+                    package: None,
+                    all: false,
+                },
+                "Uninstall" => Commands::Uninstall { package: None },
+                "Clear App Data" => Commands::Clear { package: None },
+                "Force Kill" => Commands::ForceKill { package: None },
+                "Download APK" => Commands::Download {
+                    package: None,
+                    output: None,
+                },
+                "Grant Permissions" => Commands::Grant {
+                    package: None,
+                    permissions: None,
+                },
+                "Revoke Permissions" => Commands::Revoke {
+                    package: None,
+                    permissions: None,
+                },
+                _ => unreachable!(),
+            }
         }
-    } else {
-        cli.command.unwrap()
     };
 
     match &effective_command {
         Commands::Open { .. } => {
-            if !json { println!("{} {}", "Opening".green(), selected_package); }
+            if !json {
+                println!("{} {}", "Opening".green(), selected_package);
+            }
             adb_client.open_app(&device, &selected_package)?;
-            if json { println!("{}", serde_json::json!({ "success": true, "package": selected_package })); }
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({ "success": true, "package": selected_package })
+                );
+            }
         }
         Commands::Uninstall { .. } => {
-            if !json { println!("{} {}", "Uninstalling".red(), selected_package); }
+            if !json {
+                println!("{} {}", "Uninstalling".red(), selected_package);
+            }
             adb_client.uninstall_app(&device, &selected_package)?;
-            if json { println!("{}", serde_json::json!({ "success": true, "package": selected_package })); }
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({ "success": true, "package": selected_package })
+                );
+            }
         }
         Commands::Clear { .. } => {
-            if !json { println!("{} data for {}", "Clearing".blue(), selected_package); }
+            if !json {
+                println!("{} data for {}", "Clearing".blue(), selected_package);
+            }
             adb_client.clear_app_data(&device, &selected_package)?;
-            if json { println!("{}", serde_json::json!({ "success": true, "package": selected_package })); }
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({ "success": true, "package": selected_package })
+                );
+            }
         }
         Commands::ForceKill { .. } => {
-            if !json { println!("{} {}", "Force killing".red(), selected_package); }
+            if !json {
+                println!("{} {}", "Force killing".red(), selected_package);
+            }
             adb_client.force_kill_app(&device, &selected_package)?;
-            if json { println!("{}", serde_json::json!({ "success": true, "package": selected_package })); }
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({ "success": true, "package": selected_package })
+                );
+            }
         }
         Commands::Download { output, .. } => {
-            if !json { println!("{} APK for {}", "Downloading".cyan(), selected_package); }
-            let output_path = adb_client.download_apk(&device, &selected_package, output.clone())?;
+            if !json {
+                println!("{} APK for {}", "Downloading".cyan(), selected_package);
+            }
+            let output_path =
+                adb_client.download_apk(&device, &selected_package, output.clone())?;
             if json {
-                println!("{}", serde_json::json!({ "success": true, "package": selected_package, "output": output_path.to_string_lossy() }));
+                println!(
+                    "{}",
+                    serde_json::json!({ "success": true, "package": selected_package, "output": output_path.to_string_lossy() })
+                );
             } else {
                 println!("APK downloaded to {}", output_path.display());
             }
         }
         Commands::AppInfo { all, .. } => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&adb_client.get_app_info_json(&device, &selected_package, *all))?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&adb_client.get_app_info_json(
+                        &device,
+                        &selected_package,
+                        *all
+                    ))?
+                );
             } else {
                 println!("{} {}", "Fetching info for".yellow(), selected_package);
                 adb_client.get_app_info(&device, &selected_package, *all)?;
@@ -267,17 +378,25 @@ fn real_main() -> Result<()> {
         }
         Commands::Grant { permissions, .. } => {
             let perms_to_grant: Vec<String> = if let Some(p) = permissions {
-                p.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+                p.split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
             } else {
                 let selected = MultiSelect::new(
                     "Select permissions to grant (space to select, enter to apply):",
                     android_permissions.clone(),
-                ).with_page_size(15).prompt()?;
+                )
+                .with_page_size(15)
+                .prompt()?;
                 selected.iter().map(|s| s.to_string()).collect()
             };
             if perms_to_grant.is_empty() {
                 if json {
-                    println!("{}", serde_json::json!({ "success": false, "reason": "no permissions selected" }));
+                    println!(
+                        "{}",
+                        serde_json::json!({ "success": false, "reason": "no permissions selected" })
+                    );
                 } else {
                     println!("No permissions selected.");
                 }
@@ -285,7 +404,10 @@ fn real_main() -> Result<()> {
                 let perm_refs: Vec<&str> = perms_to_grant.iter().map(|s| s.as_str()).collect();
                 adb_client.grant_permissions(&device, &selected_package, &perm_refs)?;
                 if json {
-                    println!("{}", serde_json::json!({ "success": true, "package": selected_package, "granted": perms_to_grant }));
+                    println!(
+                        "{}",
+                        serde_json::json!({ "success": true, "package": selected_package, "granted": perms_to_grant })
+                    );
                 } else {
                     println!("Permissions granted successfully.");
                 }
@@ -293,17 +415,25 @@ fn real_main() -> Result<()> {
         }
         Commands::Revoke { permissions, .. } => {
             let perms_to_revoke: Vec<String> = if let Some(p) = permissions {
-                p.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+                p.split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
             } else {
                 let selected = MultiSelect::new(
                     "Select permissions to revoke (space to select, enter to apply):",
                     android_permissions.clone(),
-                ).with_page_size(15).prompt()?;
+                )
+                .with_page_size(15)
+                .prompt()?;
                 selected.iter().map(|s| s.to_string()).collect()
             };
             if perms_to_revoke.is_empty() {
                 if json {
-                    println!("{}", serde_json::json!({ "success": false, "reason": "no permissions selected" }));
+                    println!(
+                        "{}",
+                        serde_json::json!({ "success": false, "reason": "no permissions selected" })
+                    );
                 } else {
                     println!("No permissions selected.");
                 }
@@ -311,7 +441,10 @@ fn real_main() -> Result<()> {
                 let perm_refs: Vec<&str> = perms_to_revoke.iter().map(|s| s.as_str()).collect();
                 adb_client.revoke_permissions(&device, &selected_package, &perm_refs)?;
                 if json {
-                    println!("{}", serde_json::json!({ "success": true, "package": selected_package, "revoked": perms_to_revoke }));
+                    println!(
+                        "{}",
+                        serde_json::json!({ "success": true, "package": selected_package, "revoked": perms_to_revoke })
+                    );
                 } else {
                     println!("Permissions revoked successfully.");
                 }
