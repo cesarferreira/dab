@@ -12,7 +12,7 @@ use androkit::apk;
 use anyhow::{anyhow, Result};
 use colored::*;
 use serde_json::{json, Value};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct AdbClient {
     adb: Adb,
@@ -43,7 +43,7 @@ impl AdbClient {
             .adb
             .list_packages(device)?
             .into_iter()
-            .map(|p| App::new(&p, &p))
+            .map(|p| App::new(&p))
             .collect())
     }
 
@@ -81,8 +81,15 @@ impl AdbClient {
 
     // ── app info (pm dump — dab-specific introspection) ──────────────────
 
-    pub fn get_app_info(&self, device: &str, package_name: &str, show_permissions: bool) -> Result<()> {
-        let output = self.adb.run(&["-s", device, "shell", "pm", "dump", package_name])?;
+    pub fn get_app_info(
+        &self,
+        device: &str,
+        package_name: &str,
+        show_permissions: bool,
+    ) -> Result<()> {
+        let output = self
+            .adb
+            .run(&["-s", device, "shell", "pm", "dump", package_name])?;
         let stdout = String::from_utf8_lossy(&output.stdout);
         let (version_code, version_name) = parse_versions(&stdout);
         println!("{}", "\nApp Info".bold().underline().yellow());
@@ -103,8 +110,16 @@ impl AdbClient {
         Ok(())
     }
 
-    pub fn get_app_info_json(&self, device: &str, package_name: &str, include_permissions: bool) -> Value {
-        let output = match self.adb.run(&["-s", device, "shell", "pm", "dump", package_name]) {
+    pub fn get_app_info_json(
+        &self,
+        device: &str,
+        package_name: &str,
+        include_permissions: bool,
+    ) -> Value {
+        let output = match self
+            .adb
+            .run(&["-s", device, "shell", "pm", "dump", package_name])
+        {
             Ok(o) => o,
             Err(e) => return json!({ "error": e.to_string() }),
         };
@@ -151,7 +166,9 @@ impl AdbClient {
 
     pub fn get_device_info_json(&self, device: &str) -> Value {
         match self.adb.device_info(device) {
-            Ok(info) => serde_json::to_value(info).unwrap_or_else(|e| json!({ "error": e.to_string() })),
+            Ok(info) => {
+                serde_json::to_value(info).unwrap_or_else(|e| json!({ "error": e.to_string() }))
+            }
             Err(e) => json!({ "error": e.to_string() }),
         }
     }
@@ -160,7 +177,13 @@ impl AdbClient {
 
     pub fn get_network_info(&self, device: &str) -> Result<()> {
         let info = self.adb.network_info(device)?;
-        println!("\n{}", "Network Interfaces (IP addresses)".bold().underline().yellow());
+        println!(
+            "\n{}",
+            "Network Interfaces (IP addresses)"
+                .bold()
+                .underline()
+                .yellow()
+        );
         for ip in &info.ip_addresses {
             println!("{} {}", "IP Address:".cyan(), ip.green());
         }
@@ -193,7 +216,10 @@ impl AdbClient {
             "{} {}% (Status: {})",
             "Battery:".cyan(),
             h.battery.level.unwrap_or_else(|| "N/A".to_string()).green(),
-            h.battery.status.unwrap_or_else(|| "N/A".to_string()).green()
+            h.battery
+                .status
+                .unwrap_or_else(|| "N/A".to_string())
+                .green()
         );
         if let Some(s) = h.storage {
             println!(
@@ -282,17 +308,27 @@ impl AdbClient {
         self.adb.launch_url(device, url)
     }
 
-    pub fn grant_permissions(&self, device: &str, package_name: &str, permissions: &[&str]) -> Result<()> {
+    pub fn grant_permissions(
+        &self,
+        device: &str,
+        package_name: &str,
+        permissions: &[&str],
+    ) -> Result<()> {
         self.adb.grant(device, package_name, permissions)
     }
 
-    pub fn revoke_permissions(&self, device: &str, package_name: &str, permissions: &[&str]) -> Result<()> {
+    pub fn revoke_permissions(
+        &self,
+        device: &str,
+        package_name: &str,
+        permissions: &[&str],
+    ) -> Result<()> {
         self.adb.revoke(device, package_name, permissions)
     }
 
     // ── install ──────────────────────────────────────────────────────────
 
-    pub fn install_file(&self, device: &str, file_path: &PathBuf) -> Result<()> {
+    pub fn install_file(&self, device: &str, file_path: &Path) -> Result<()> {
         if !file_path.exists() {
             return Err(anyhow!("File does not exist: {}", file_path.display()));
         }
@@ -308,8 +344,13 @@ impl AdbClient {
                 Ok(())
             }
             Some("xapk") | Some("apkm") => {
-                println!("{} {}", "Installing XAPK/APKM:".green(), file_path.display());
-                let temp_dir = std::env::temp_dir().join(format!("dab_xapk_{}", std::process::id()));
+                println!(
+                    "{} {}",
+                    "Installing XAPK/APKM:".green(),
+                    file_path.display()
+                );
+                let temp_dir =
+                    std::env::temp_dir().join(format!("dab_xapk_{}", std::process::id()));
                 std::fs::create_dir_all(&temp_dir)?;
                 let result = (|| {
                     let apks = apk::extract_apks(file_path, &temp_dir)?;
@@ -332,7 +373,7 @@ impl AdbClient {
 
     // ── local file analysis ──────────────────────────────────────────────
 
-    pub fn analyze_local_file(&self, file_path: &PathBuf) -> Result<()> {
+    pub fn analyze_local_file(&self, file_path: &Path) -> Result<()> {
         let info = apk::analyze(file_path)?;
         println!("{}", "\nAPK File Analysis".bold().underline().yellow());
         println!("{}: {}", "Package Name".cyan(), info.package_name.green());
@@ -350,9 +391,11 @@ impl AdbClient {
         Ok(())
     }
 
-    pub fn analyze_local_file_json(&self, file_path: &PathBuf) -> Value {
+    pub fn analyze_local_file_json(&self, file_path: &Path) -> Value {
         match apk::analyze(file_path) {
-            Ok(info) => serde_json::to_value(info).unwrap_or_else(|e| json!({ "error": e.to_string() })),
+            Ok(info) => {
+                serde_json::to_value(info).unwrap_or_else(|e| json!({ "error": e.to_string() }))
+            }
             Err(e) => json!({ "error": e.to_string() }),
         }
     }
@@ -370,7 +413,11 @@ fn parse_versions(dump: &str) -> (String, String) {
         .unwrap_or_else(|| "N/A".to_string());
     let version_name = dump
         .lines()
-        .find_map(|line| line.trim().strip_prefix("versionName=").map(|s| s.to_string()))
+        .find_map(|line| {
+            line.trim()
+                .strip_prefix("versionName=")
+                .map(|s| s.to_string())
+        })
         .unwrap_or_else(|| "N/A".to_string());
     (version_code, version_name)
 }
