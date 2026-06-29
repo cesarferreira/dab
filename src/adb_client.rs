@@ -14,6 +14,33 @@ use colored::*;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
+
+pub mod permission {
+    pub const CAMERA: &str = "android.permission.CAMERA";
+    pub const RECORD_AUDIO: &str = "android.permission.RECORD_AUDIO";
+    pub const READ_CONTACTS: &str = "android.permission.READ_CONTACTS";
+    pub const WRITE_CONTACTS: &str = "android.permission.WRITE_CONTACTS";
+    pub const GET_ACCOUNTS: &str = "android.permission.GET_ACCOUNTS";
+    pub const ACCESS_FINE_LOCATION: &str = "android.permission.ACCESS_FINE_LOCATION";
+    pub const ACCESS_COARSE_LOCATION: &str = "android.permission.ACCESS_COARSE_LOCATION";
+    pub const ACCESS_BACKGROUND_LOCATION: &str = "android.permission.ACCESS_BACKGROUND_LOCATION";
+    pub const READ_PHONE_STATE: &str = "android.permission.READ_PHONE_STATE";
+    pub const CALL_PHONE: &str = "android.permission.CALL_PHONE";
+    pub const READ_CALL_LOG: &str = "android.permission.READ_CALL_LOG";
+    pub const WRITE_CALL_LOG: &str = "android.permission.WRITE_CALL_LOG";
+    pub const ADD_VOICEMAIL: &str = "android.permission.ADD_VOICEMAIL";
+    pub const USE_SIP: &str = "android.permission.USE_SIP";
+    pub const BODY_SENSORS: &str = "android.permission.BODY_SENSORS";
+    pub const SEND_SMS: &str = "android.permission.SEND_SMS";
+    pub const RECEIVE_SMS: &str = "android.permission.RECEIVE_SMS";
+    pub const READ_SMS: &str = "android.permission.READ_SMS";
+    pub const RECEIVE_WAP_PUSH: &str = "android.permission.RECEIVE_WAP_PUSH";
+    pub const RECEIVE_MMS: &str = "android.permission.RECEIVE_MMS";
+    pub const READ_EXTERNAL_STORAGE: &str = "android.permission.READ_EXTERNAL_STORAGE";
+    pub const WRITE_EXTERNAL_STORAGE: &str = "android.permission.WRITE_EXTERNAL_STORAGE";
+    pub const INTERNET: &str = "android.permission.INTERNET";
+}
+
 pub struct AdbClient {
     adb: Adb,
 }
