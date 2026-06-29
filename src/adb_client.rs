@@ -15,6 +15,7 @@ use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
 
+/// Constants for android permissions
 pub mod permission {
     pub const CAMERA: &str = "android.permission.CAMERA";
     pub const RECORD_AUDIO: &str = "android.permission.RECORD_AUDIO";
@@ -503,32 +504,32 @@ mod tests {
 
     #[test]
     fn parse_granted_permissions_returns_granted_deduped_in_order() {
-        let dump = "\
+        let dump = format!("\
     requested permissions:
-      android.permission.INTERNET
-      android.permission.CAMERA
+            {}
+            {}
     install permissions:
-      android.permission.INTERNET: granted=true
-      android.permission.CAMERA: granted=false
+            {}: granted=true
+            {}: granted=false
       com.android.permission.SPECIAL: granted=true
-      android.permission.INTERNET: granted=true
-      android.permission.ACCESS_FINE_LOCATION: granted=true";
-        let granted = parse_granted_permissions(dump);
+            {}: granted=true
+            {}: granted=true", permission::INTERNET, permission::CAMERA, permission::INTERNET, permission::CAMERA, permission::INTERNET, permission::ACCESS_FINE_LOCATION);
+        let granted = parse_granted_permissions(&dump);
         assert_eq!(
             granted,
             vec![
-                "android.permission.INTERNET".to_string(),
+                permission::INTERNET.to_string(),
                 "com.android.permission.SPECIAL".to_string(),
-                "android.permission.ACCESS_FINE_LOCATION".to_string(),
+                permission::ACCESS_FINE_LOCATION.to_string(),
             ]
         );
     }
 
     #[test]
     fn parse_granted_permissions_empty_when_none_granted() {
-        let dump = "\
-      android.permission.INTERNET: granted=false
-      android.permission.CAMERA: granted=false";
-        assert!(parse_granted_permissions(dump).is_empty());
+        let dump = format!("\
+            {}: granted=false
+            {}: granted=false", permission::INTERNET, permission::CAMERA);
+        assert!(parse_granted_permissions(&dump).is_empty());
     }
 }
