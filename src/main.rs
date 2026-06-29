@@ -180,7 +180,6 @@ fn real_main() -> Result<()> {
     // ── Commands that need a device AND an app ───────────────────────────────
 
     let android_permissions = vec![
-        // "android.permission.CAMERA",
         adb_client::permission::CAMERA,
         adb_client::permission::RECORD_AUDIO,
         adb_client::permission::READ_CONTACTS,
