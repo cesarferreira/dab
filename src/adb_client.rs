@@ -14,7 +14,6 @@ use colored::*;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
-
 /// Constants for android permissions
 pub mod permission {
     pub const CAMERA: &str = "android.permission.CAMERA";
@@ -504,7 +503,8 @@ mod tests {
 
     #[test]
     fn parse_granted_permissions_returns_granted_deduped_in_order() {
-        let dump = format!("\
+        let dump = format!(
+            "\
     requested permissions:
             {}
             {}
@@ -513,7 +513,14 @@ mod tests {
             {}: granted=false
       com.android.permission.SPECIAL: granted=true
             {}: granted=true
-            {}: granted=true", permission::INTERNET, permission::CAMERA, permission::INTERNET, permission::CAMERA, permission::INTERNET, permission::ACCESS_FINE_LOCATION);
+            {}: granted=true",
+            permission::INTERNET,
+            permission::CAMERA,
+            permission::INTERNET,
+            permission::CAMERA,
+            permission::INTERNET,
+            permission::ACCESS_FINE_LOCATION
+        );
         let granted = parse_granted_permissions(&dump);
         assert_eq!(
             granted,
@@ -527,9 +534,13 @@ mod tests {
 
     #[test]
     fn parse_granted_permissions_empty_when_none_granted() {
-        let dump = format!("\
+        let dump = format!(
+            "\
             {}: granted=false
-            {}: granted=false", permission::INTERNET, permission::CAMERA);
+            {}: granted=false",
+            permission::INTERNET,
+            permission::CAMERA
+        );
         assert!(parse_granted_permissions(&dump).is_empty());
     }
 }
