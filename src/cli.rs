@@ -41,6 +41,12 @@ pub enum Commands {
         #[arg(long, value_name = "PACKAGE")]
         package: Option<String>,
     },
+    /// Clear app cache data
+    #[command(name = "cache-clear")]
+    CacheClear {
+        #[arg(long, value_name = "PACKAGE")]
+        package: Option<String>,
+    },
     /// Force kill an app
     #[command(name = "force-kill")]
     ForceKill {
