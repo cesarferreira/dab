@@ -339,10 +339,11 @@ fn real_main() -> Result<()> {
         }
         Commands::CacheClear { .. } => {
             if !json {
-                println!("{} data for {}", "Clearing".blue(), selected_package);
+                println!("{} cache data for {}", "Clearing".bright_blue(), selected_package);
             }
-            // TODO: Implement
+            println!("Doing something 🥸");
             adb_client.clear_app_cache_data(&device, &selected_package)?;
+            println!("Done!😃");
             if json {
                 println!(
                     "{}",
