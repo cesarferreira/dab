@@ -93,6 +93,13 @@ impl AdbClient {
         self.adb.clear_data(device, package_name)
     }
 
+    pub fn clear_app_cache_data(&self, device: &str, package_name: &str) -> Result<()> {
+        let _output = self.adb.run(&["-s", device, "shell", "pm", "clear", "--cache-only", package_name])?;
+        println!("Output result: {_output:?}");
+
+        Ok(())
+    }
+
     pub fn force_kill_app(&self, device: &str, package_name: &str) -> Result<()> {
         self.adb.stop_app(device, package_name)
     }
