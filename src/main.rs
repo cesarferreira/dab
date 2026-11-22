@@ -210,6 +210,7 @@ fn real_main() -> Result<()> {
         Some(Commands::Open { package }) => package.as_deref(),
         Some(Commands::Uninstall { package }) => package.as_deref(),
         Some(Commands::Clear { package }) => package.as_deref(),
+        Some(Commands::CacheClear { package }) => package.as_deref(),
         Some(Commands::ForceKill { package }) => package.as_deref(),
         Some(Commands::Download { package, .. }) => package.as_deref(),
         Some(Commands::AppInfo { package, .. }) => package.as_deref(),
@@ -265,6 +266,7 @@ fn real_main() -> Result<()> {
                 "App Info",
                 "Uninstall",
                 "Clear App Data",
+                "Clear App Cache Data",
                 "Force Kill",
                 "Download APK",
                 "Grant Permissions",
@@ -279,6 +281,7 @@ fn real_main() -> Result<()> {
                 },
                 "Uninstall" => Commands::Uninstall { package: None },
                 "Clear App Data" => Commands::Clear { package: None },
+                "Clear App Cache Data" => Commands::CacheClear { package: None },
                 "Force Kill" => Commands::ForceKill { package: None },
                 "Download APK" => Commands::Download {
                     package: None,
@@ -327,6 +330,20 @@ fn real_main() -> Result<()> {
                 println!("{} data for {}", "Clearing".blue(), selected_package);
             }
             adb_client.clear_app_data(&device, &selected_package)?;
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({ "success": true, "package": selected_package })
+                );
+            }
+        }
+        Commands::CacheClear { .. } => {
+            if !json {
+                println!("{} cache data for {}", "Clearing".bright_blue(), selected_package);
+            }
+            println!("Doing something 🥸");
+            adb_client.clear_app_cache_data(&device, &selected_package)?;
+            println!("Done!😃");
             if json {
                 println!(
                     "{}",
